@@ -1,0 +1,2031 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>PUBG BRIDGE Replay Data Visualizer</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pako/2.1.0/pako.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.44.0/min/vs/loader.min.js"></script>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: #0d1117;
+      color: #c9d1d9;
+      line-height: 1.6;
+    }
+    
+    #drop-zone {
+      position: fixed;
+      top: 0; left: 0; right: 0; bottom: 0;
+      background: rgba(13, 17, 23, 0.95);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      z-index: 1000;
+      border: 3px dashed #30363d;
+      transition: all 0.2s;
+    }
+    #drop-zone.drag-over {
+      background: rgba(33, 136, 56, 0.1);
+      border-color: #238636;
+    }
+    #drop-zone.hidden { display: none; }
+    #drop-zone h1 { font-size: 24px; margin-bottom: 20px; color: #f0f6fc; }
+    #drop-zone p { color: #8b949e; }
+    
+    #main-container { display: none; height: 100vh; }
+    #main-container.loaded { display: flex; }
+    
+    #sidebar {
+      width: 280px;
+      background: #161b22;
+      border-right: 1px solid #30363d;
+      overflow-y: auto;
+      flex-shrink: 0;
+    }
+    #sidebar h2 {
+      padding: 16px;
+      font-size: 14px;
+      font-weight: 600;
+      color: #f0f6fc;
+      border-bottom: 1px solid #30363d;
+      position: sticky;
+      top: 0;
+      background: #161b22;
+    }
+    .nav-item {
+      padding: 10px 16px;
+      cursor: pointer;
+      border-bottom: 1px solid #21262d;
+      font-size: 13px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .nav-item:hover { background: #1f242c; }
+    .nav-item.active { background: #1f6feb; color: #fff; }
+    .nav-item .count {
+      background: #30363d;
+      padding: 2px 8px;
+      border-radius: 12px;
+      font-size: 11px;
+    }
+    .nav-item.active .count { background: rgba(255,255,255,0.2); }
+    
+    #content {
+      flex: 1;
+      overflow-y: auto;
+      padding: 20px;
+    }
+    
+    .panel {
+      background: #161b22;
+      border: 1px solid #30363d;
+      border-radius: 6px;
+      margin-bottom: 20px;
+    }
+    .panel-header {
+      padding: 12px 16px;
+      border-bottom: 1px solid #30363d;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .panel-title { font-size: 14px; font-weight: 600; color: #f0f6fc; }
+    .panel-body { padding: 16px; }
+    
+    .json-tree { font-family: 'SF Mono', Monaco, monospace; font-size: 12px; }
+    .json-node { margin-left: 20px; }
+    .json-key { color: #7ee787; }
+    .json-string { color: #a5d6ff; }
+    .json-number { color: #79c0ff; }
+    .json-boolean { color: #ff7b72; }
+    .json-null { color: #ff7b72; }
+    .collapsible { cursor: pointer; }
+    .collapsible::before {
+      content: '▼';
+      display: inline-block;
+      width: 12px;
+      color: #8b949e;
+      font-size: 10px;
+    }
+    .collapsible.collapsed::before { content: '▶'; }
+    .collapsed + .json-node { display: none; }
+    
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 12px;
+    }
+    th, td {
+      padding: 8px 12px;
+      text-align: left;
+      border-bottom: 1px solid #30363d;
+    }
+    th {
+      background: #21262d;
+      font-weight: 600;
+      color: #f0f6fc;
+      position: sticky;
+      top: 0;
+    }
+    tr:hover { background: #1f242c; }
+    
+    .chart-container {
+      height: 200px;
+      background: #0d1117;
+      border: 1px solid #30363d;
+      margin: 10px 0;
+      position: relative;
+    }
+    canvas { display: block; }
+    
+    .stats-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+      gap: 12px;
+    }
+    .stat-card {
+      background: #0d1117;
+      border: 1px solid #30363d;
+      padding: 16px;
+      border-radius: 6px;
+    }
+    .stat-value {
+      font-size: 24px;
+      font-weight: 600;
+      color: #58a6ff;
+    }
+    .stat-label {
+      font-size: 12px;
+      color: #8b949e;
+      margin-top: 4px;
+    }
+    
+    .badge {
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: 12px;
+      font-size: 11px;
+      margin-right: 4px;
+    }
+    .badge-blue { background: #1f6feb; color: #fff; }
+    .badge-green { background: #238636; color: #fff; }
+    .badge-red { background: #da3633; color: #fff; }
+    .badge-gray { background: #30363d; color: #c9d1d9; }
+    
+    .player-card {
+      background: #0d1117;
+      border: 1px solid #30363d;
+      padding: 12px;
+      margin-bottom: 8px;
+      border-radius: 6px;
+      cursor: pointer;
+    }
+    .player-card:hover { border-color: #58a6ff; }
+    .player-name { font-weight: 600; color: #f0f6fc; }
+    .player-meta { font-size: 12px; color: #8b949e; margin-top: 4px; }
+    
+    .search-box {
+      width: 100%;
+      padding: 8px 12px;
+      background: #0d1117;
+      border: 1px solid #30363d;
+      color: #c9d1d9;
+      border-radius: 6px;
+      font-size: 13px;
+      margin-bottom: 12px;
+    }
+    .search-box:focus { outline: none; border-color: #58a6ff; }
+    
+    .raw-json {
+      background: #0d1117;
+      border: 1px solid #30363d;
+      padding: 16px;
+      overflow-x: auto;
+      font-family: 'SF Mono', Monaco, monospace;
+      font-size: 11px;
+      line-height: 1.5;
+      max-height: 600px;
+      overflow-y: auto;
+    }
+    
+    .toolbar {
+      background: #161b22;
+      border-bottom: 1px solid #30363d;
+      padding: 12px 20px;
+      display: flex;
+      gap: 12px;
+      align-items: center;
+    }
+    .btn {
+      padding: 6px 16px;
+      background: #21262d;
+      border: 1px solid #30363d;
+      color: #c9d1d9;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 13px;
+    }
+    .btn:hover { background: #30363d; }
+    .btn-primary { background: #238636; border-color: #238636; }
+    .btn-primary:hover { background: #2ea043; }
+    
+    .hidden { display: none !important; }
+
+    #replay-container {
+      display: flex;
+      flex-direction: column;
+      height: 100%;
+    }
+    #replay-canvas-container {
+      flex: 1;
+      position: relative;
+      background: #0d1117;
+      overflow: hidden;
+      aspect-ratio: 1 / 1;
+      max-height: calc(100% - 100px);
+      margin: 0 auto;
+      width: auto;
+    }
+    #replay-map-container {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      display: flex;
+      flex-wrap: wrap;
+    }
+    #replay-map-container .low-res-img {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
+    #replay-map-container .tiled-img {
+      position: relative;
+      width: 25%;
+      height: 25%;
+      object-fit: cover;
+    }
+    #replay-canvas {
+      position: absolute;
+      top: 0;
+      left: 0;
+      cursor: grab;
+      z-index: 10;
+    }
+    #replay-canvas:active {
+      cursor: grabbing;
+    }
+    #replay-controls {
+      background: #161b22;
+      border-top: 1px solid #30363d;
+      padding: 12px 16px;
+    }
+    #replay-timeline {
+      width: 100%;
+      height: 24px;
+      -webkit-appearance: none;
+      background: #21262d;
+      border-radius: 4px;
+      outline: none;
+    }
+    #replay-timeline::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      width: 12px;
+      height: 24px;
+      background: #58a6ff;
+      border-radius: 4px;
+      cursor: pointer;
+    }
+    #replay-timeline::-moz-range-thumb {
+      width: 12px;
+      height: 24px;
+      background: #58a6ff;
+      border-radius: 4px;
+      cursor: pointer;
+      border: none;
+    }
+    .replay-toolbar {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+      margin-top: 8px;
+    }
+    .replay-info {
+      display: flex;
+      gap: 16px;
+      margin-left: auto;
+      font-size: 12px;
+      color: #8b949e;
+    }
+    .replay-info span {
+      color: #f0f6fc;
+    }
+    .speed-btn {
+      padding: 4px 8px;
+      font-size: 11px;
+    }
+    .speed-btn.active {
+      background: #1f6feb;
+      border-color: #1f6feb;
+    }
+    #replay-stats {
+      position: absolute;
+      top: 8px;
+      left: 8px;
+      background: rgba(13, 17, 23, 0.95);
+      padding: 10px 14px;
+      border-radius: 4px;
+      font-size: 11px;
+      color: #8b949e;
+      pointer-events: none;
+      z-index: 20;
+      font-family: 'Consolas', 'Monaco', monospace;
+      line-height: 1.6;
+      min-width: 280px;
+    }
+    #replay-stats div {
+      margin-bottom: 2px;
+    }
+    #replay-stats div:last-child {
+      margin-bottom: 0;
+    }
+    #replay-stats span {
+      color: #f0f6fc;
+    }
+  </style>
+</head>
+<body>
+  <!-- 拖拽区域 -->
+  <div id="drop-zone">
+    <h1>PUBG BRIDGE Replay Data Visualizer</h1>
+    <p>Github: <a href="https://github.com/Liovovo/pubg-bridge-replay-analyzer" target="_blank" style="color: inherit; text-decoration: none;">Liovovo/pubg-bridge-replay-analyzer</a></p>
+    <p>拖拽 replaydata_parsed.json 到此处</p>
+  </div>
+
+  <!-- 主容器 -->
+  <div id="main-container">
+    <!-- 侧边栏 -->
+    <div id="sidebar">
+      <h2>PUBG BRIDGE Replay Data Visualizer</h2>
+      <div class="nav-item active" data-view="overview">
+        <span>总览</span>
+        <span class="badge badge-blue">13</span>
+      </div>
+      <div class="nav-item" data-view="metadata">
+        <span>元数据</span>
+        <span class="badge badge-gray">m, t, o</span>
+      </div>
+      <div class="nav-item" data-view="items">
+        <span>物品定义</span>
+        <span class="count" id="item-count">0</span>
+      </div>
+      <div class="nav-item" data-view="players">
+        <span>玩家数据</span>
+        <span class="count" id="player-count">0</span>
+      </div>
+      <div class="nav-item" data-view="zones">
+        <span>安全区/毒圈</span>
+        <span class="badge badge-green">z</span>
+      </div>
+      <div class="nav-item" data-view="special-zones">
+        <span>特殊区域</span>
+        <span class="badge badge-gray">s</span>
+      </div>
+      <div class="nav-item" data-view="combats">
+        <span>战斗数据</span>
+        <span class="badge badge-red">c</span>
+      </div>
+      <div class="nav-item" data-view="carepackages">
+        <span>空投补给</span>
+        <span class="count" id="carepackage-count">0</span>
+      </div>
+      <div class="nav-item" data-view="bluechip">
+        <span>蓝色晶片</span>
+        <span class="badge badge-gray">b</span>
+      </div>
+      <div class="nav-item" data-view="redeploy">
+        <span>重新部署</span>
+        <span class="badge badge-gray">r</span>
+      </div>
+      <div class="nav-item" data-view="kills">
+        <span>击杀记录</span>
+        <span class="count" id="kill-count">0</span>
+      </div>
+      <div class="nav-item" data-view="replay">
+        <span>2D回放</span>
+        <span class="badge badge-green">R</span>
+      </div>
+      <div class="nav-item" data-view="raw">
+        <span>JSON</span>
+      </div>
+    </div>
+
+    <!-- 内容区 -->
+    <div style="flex: 1; display: flex; flex-direction: column;">
+      <div class="toolbar">
+        <button class="btn" onclick="loadNewFile()">加载新文件</button>
+        <button class="btn" onclick="exportData()">导出数据</button>
+        <span id="file-info" style="margin-left: auto; color: #8b949e; font-size: 12px;"></span>
+      </div>
+      <div id="content"></div>
+    </div>
+  </div>
+
+  <script>
+    let replayData = null;
+    let currentView = 'overview';
+
+    const dropZone = document.getElementById('drop-zone');
+    
+    ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+      dropZone.addEventListener(eventName, preventDefaults, false);
+      document.body.addEventListener(eventName, preventDefaults, false);
+    });
+
+    function preventDefaults(e) {
+      e.preventDefault();
+      e.stopPropagation();
+    }
+
+    ['dragenter', 'dragover'].forEach(eventName => {
+      dropZone.addEventListener(eventName, () => dropZone.classList.add('drag-over'), false);
+    });
+
+    ['dragleave', 'drop'].forEach(eventName => {
+      dropZone.addEventListener(eventName, () => dropZone.classList.remove('drag-over'), false);
+    });
+
+    dropZone.addEventListener('drop', handleDrop, false);
+
+    function handleDrop(e) {
+      const files = e.dataTransfer.files;
+      if (files.length > 0) {
+        loadFile(files[0]);
+      }
+    }
+
+    function loadFile(file) {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        try {
+          const content = e.target.result;
+          const parsed = detectAndParse(content);
+          if (parsed) {
+            replayData = parsed;
+            document.getElementById('file-info').textContent = `${file.name} (${(file.size/1024).toFixed(1)} KB)`;
+            initVisualizer();
+          } else {
+            alert('无法解析文件内容');
+          }
+        } catch (err) {
+          alert('解析失败: ' + err.message);
+        }
+      };
+      reader.readAsText(file);
+    }
+
+    function detectAndParse(content) {
+      // 作为普通JSON解析
+      let parsedJson = null;
+      try {
+        parsedJson = JSON.parse(content);
+      } catch (e) {
+        // 如果不是则继续
+      }
+
+      // 成功检查是否是 {replayData: 结构
+      if (parsedJson && parsedJson.replayData && typeof parsedJson.replayData === 'string') {
+        const base64Data = parsedJson.replayData.trim();
+        try {
+          const decoded = atob(base64Data);
+          const decompressed = decompressGzip(decoded);
+          if (decompressed) {
+            return decompressed;
+          }
+        } catch (e) {
+          console.error('解析replayData失败:', e);
+        }
+        return null;
+      }
+
+      // 如果是普通JSON对象，直接返回
+      if (parsedJson) {
+        return parsedJson;
+      }
+
+      // 是否为纯Base64编码
+      const trimmed = content.trim();
+      const base64Pattern = /^[A-Za-z0-9+/=\s]+$/;
+      if (base64Pattern.test(trimmed) && trimmed.length > 100) {
+        try {
+          const decoded = atob(trimmed.replace(/\s/g, ''));
+          const decompressed = decompressGzip(decoded);
+          if (decompressed) {
+            return decompressed;
+          }
+          try {
+            return JSON.parse(decoded);
+          } catch (e) {
+          }
+        } catch (e) {
+        }
+      }
+
+      return null;
+    }
+
+    // 解压gzip
+    function decompressGzip(data) {
+      try {
+        const uint8Array = new Uint8Array(data.length);
+        for (let i = 0; i < data.length; i++) {
+          uint8Array[i] = data.charCodeAt(i) & 0xff;
+        }
+        const decompressed = pako.inflate(uint8Array, { to: 'string' });
+        return JSON.parse(decompressed);
+      } catch (e) {
+        console.error('解压失败:', e);
+        return null;
+      }
+    }
+
+    function initVisualizer() {
+      dropZone.classList.add('hidden');
+      document.getElementById('main-container').classList.add('loaded');
+      
+      document.getElementById('item-count').textContent = replayData.x?.length || 0;
+      document.getElementById('player-count').textContent = replayData.p?.length || 0;
+      document.getElementById('carepackage-count').textContent = replayData.k?.length || 0;
+      document.getElementById('kill-count').textContent = replayData.f?.length || 0;
+      
+      renderView('overview');
+    }
+
+    function loadNewFile() {
+      dropZone.classList.remove('hidden');
+      document.getElementById('main-container').classList.remove('loaded');
+      replayData = null;
+    }
+
+    function exportData() {
+      if (!replayData) return;
+      const blob = new Blob([JSON.stringify(replayData, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = generateExportFileName();
+      a.click();
+    }
+
+    // 导出文件名
+    function generateExportFileName() {
+      const m = replayData.m || {};
+      const t = replayData.t || {};
+
+      const parts = ['replay'];
+
+      const mapName = m.n || t.m;
+      if (mapName) {
+        parts.push(mapName);
+      }
+
+      if (m.w) {
+        parts.push(m.w);
+      }
+
+      if (m.l) {
+        parts.push(m.l + 's');
+      }
+
+      return parts.join('_') + '.json';
+    }
+
+    // 导航切换
+    document.querySelectorAll('.nav-item').forEach(item => {
+      item.addEventListener('click', () => {
+        document.querySelectorAll('.nav-item').forEach(i => i.classList.remove('active'));
+        item.classList.add('active');
+        renderView(item.dataset.view);
+      });
+    });
+
+    // 渲染视图
+    function renderView(view) {
+      currentView = view;
+      const content = document.getElementById('content');
+      
+      switch(view) {
+        case 'overview': renderOverview(content); break;
+        case 'metadata': renderMetadata(content); break;
+        case 'items': renderItems(content); break;
+        case 'players': renderPlayers(content); break;
+        case 'zones': renderZones(content); break;
+        case 'special-zones': renderSpecialZones(content); break;
+        case 'combats': renderCombats(content); break;
+        case 'carepackages': renderCarePackages(content); break;
+        case 'bluechip': renderBluechip(content); break;
+        case 'redeploy': renderRedeploy(content); break;
+        case 'kills': renderKills(content); break;
+        case 'replay': renderReplay(content); break;
+        case 'raw': renderRaw(content); break;
+      }
+    }
+
+    // ========== 各视图渲染函数 ==========
+
+    function renderOverview(container) {
+      const stats = [
+        { label: '物品定义数量', value: replayData.x?.length || 0 },
+        { label: '玩家数量', value: replayData.p?.length || 0 },
+        { label: '击杀记录数', value: replayData.f?.length || 0 },
+        { label: '空投补给数', value: replayData.k?.length || 0 },
+        { label: '毒圈阶段数', value: replayData.z?.b?.length || 0 },
+        { label: '安全区阶段数', value: replayData.z?.s?.length || 0 },
+        { label: '红区事件数', value: replayData.s?.r?.length || 0 },
+        { label: '黑区事件数', value: replayData.s?.b?.length || 0 },
+        { label: '战斗记录数', value: replayData.c?.a?.t?.length || 0 },
+        { label: '地图宽度', value: replayData.t?.w || 0 },
+        { label: '地图高度', value: replayData.t?.h || 0 },
+        { label: '比赛时长', value: replayData.m?.l || 0 },
+      ];
+
+      let html = '<div class="panel"><div class="panel-header"><span class="panel-title">数据概览</span></div><div class="panel-body">';
+      html += '<div class="stats-grid">';
+      stats.forEach(stat => {
+        html += `<div class="stat-card"><div class="stat-value">${stat.value.toLocaleString()}</div><div class="stat-label">${stat.label}</div></div>`;
+      });
+      html += '</div></div></div>';
+
+      // 顶层键
+      html += '<div class="panel"><div class="panel-header"><span class="panel-title">顶层数据结构</span></div><div class="panel-body">';
+      html += '<table><tr><th>键</th><th>类型</th><th>描述</th></tr>';
+      const keyDesc = {
+        x: '物品定义表 (武器/载具/装备)',
+        i: '物品索引映射',
+        o: '版本信息',
+        m: '比赛元数据',
+        t: '地图信息',
+        p: '玩家数组',
+        c: '战斗/伤害数据',
+        z: '安全区/毒圈数据',
+        s: '特殊区域 (红区/黑区)',
+        k: '空投补给箱',
+        b: '蓝色晶片/蓝色晶片基站',
+        r: '重新部署数据',
+        f: '击杀记录'
+      };
+      Object.keys(replayData).forEach(key => {
+        const type = Array.isArray(replayData[key]) ? `Array(${replayData[key].length})` : 'Object';
+        html += `<tr><td><code>${key}</code></td><td>${type}</td><td>${keyDesc[key] || '-'}</td></tr>`;
+      });
+      html += '</table></div></div>';
+
+      container.innerHTML = html;
+    }
+
+    function renderMetadata(container) {
+      let html = '';
+      
+      // 元数据
+      html += '<div class="panel"><div class="panel-header"><span class="panel-title">比赛元数据 (m)</span></div><div class="panel-body">';
+      html += renderJsonTree(replayData.m);
+      html += '</div></div>';
+
+      // 地图信息
+      html += '<div class="panel"><div class="panel-header"><span class="panel-title">地图信息 (t)</span></div><div class="panel-body">';
+      html += renderJsonTree(replayData.t);
+      html += '</div></div>';
+
+      // 版本信息
+      html += '<div class="panel"><div class="panel-header"><span class="panel-title">版本信息 (o)</span></div><div class="panel-body">';
+      html += renderJsonTree(replayData.o);
+      html += '</div></div>';
+
+      container.innerHTML = html;
+      attachCollapsible();
+    }
+
+    function renderItems(container) {
+      let html = '<div class="panel"><div class="panel-header"><span class="panel-title">物品定义表 (x)</span></div><div class="panel-body">';
+      html += '<table><tr><th>索引</th><th>物品ID</th><th>类别</th></tr>';
+      replayData.x?.forEach((item, idx) => {
+        const category = item.includes('.') ? item.split('.')[0] : 'other';
+        html += `<tr><td>${idx}</td><td><code>${item}</code></td><td><span class="badge badge-gray">${category}</span></td></tr>`;
+      });
+      html += '</table></div></div>';
+
+      // 索引映射
+      html += '<div class="panel"><div class="panel-header"><span class="panel-title">物品索引映射 (i)</span></div><div class="panel-body">';
+      html += '<table><tr><th>物品ID</th><th>索引</th></tr>';
+      Object.entries(replayData.i || {}).forEach(([key, val]) => {
+        html += `<tr><td><code>${key}</code></td><td>${val}</td></tr>`;
+      });
+      html += '</table></div></div>';
+
+      container.innerHTML = html;
+    }
+
+    function renderPlayers(container) {
+      let html = '<input type="text" class="search-box" placeholder="搜索玩家昵称..." onkeyup="filterPlayers(this.value)">';
+      html += '<div id="players-list">';
+      
+      replayData.p?.forEach((player, idx) => {
+        const info = player.i;
+        const posCount = player.p?.t?.length || 0;
+        const healthCount = player.h?.t?.length || 0;
+        const killCount = player.k?.k?.[player.k.k.length - 1] || 0;
+        
+        html += `<div class="player-card" data-name="${info.n.toLowerCase()}" onclick="showPlayerDetail(${idx})">`;
+        html += `<div class="player-name">${info.n} <span class="badge badge-blue">Team ${info.t}</span></div>`;
+        html += `<div class="player-meta">`;
+        html += `ID: ${info.a.substring(0, 20)}... | `;
+        html += `位置点: ${posCount} | `;
+        html += `血量记录: ${healthCount} | `;
+        html += `击杀: ${killCount}`;
+        if (info.c) html += ` | 战队: ${info.c}`;
+        html += `</div></div>`;
+      });
+      
+      html += '</div>';
+      container.innerHTML = html;
+    }
+
+    function filterPlayers(query) {
+      const cards = document.querySelectorAll('.player-card');
+      cards.forEach(card => {
+        const name = card.dataset.name;
+        card.style.display = name.includes(query.toLowerCase()) ? 'block' : 'none';
+      });
+    }
+
+    function showPlayerDetail(idx) {
+      const player = replayData.p[idx];
+      const content = document.getElementById('content');
+      
+      let html = `<div class="panel"><div class="panel-header"><span class="panel-title">玩家详情: ${player.i.n}</span></div><div class="panel-body">`;
+      
+      // 基本信息
+      html += '<h3 style="margin: 16px 0 8px; color: #f0f6fc;">基本信息</h3>';
+      html += renderJsonTree(player.i);
+      
+      // 位置数据
+      html += '<h3 style="margin: 16px 0 8px; color: #f0f6fc;">位置数据 (p)</h3>';
+      html += `<p style="color: #8b949e; font-size: 12px; margin-bottom: 8px;">时间点数: ${player.p?.t?.length || 0}</p>`;
+      html += renderJsonTree({
+        t: `Array(${player.p?.t?.length || 0}) [${player.p?.t?.slice(0, 5).join(', ')}...]`,
+        x: `Array(${player.p?.x?.length || 0})`,
+        y: `Array(${player.p?.y?.length || 0})`
+      });
+      
+      // 血量数据
+      html += '<h3 style="margin: 16px 0 8px; color: #f0f6fc;">血量数据 (h)</h3>';
+      html += renderJsonTree({
+        t: `Array(${player.h?.t?.length || 0})`,
+        h: `Array(${player.h?.h?.length || 0}) [${player.h?.h?.slice(0, 5).join(', ')}...]`
+      });
+      
+      // 生死事件
+      html += '<h3 style="margin: 16px 0 8px; color: #f0f6fc;">生死事件 (l)</h3>';
+      html += renderJsonTree(player.l);
+      
+      // 载具事件
+      html += '<h3 style="margin: 16px 0 8px; color: #f0f6fc;">载具事件 (v)</h3>';
+      html += renderJsonTree(player.v);
+      
+      // 武器
+      html += '<h3 style="margin: 16px 0 8px; color: #f0f6fc;">武器切换 (w)</h3>';
+      html += renderJsonTree(player.w);
+      
+      // 击杀助攻
+      html += '<h3 style="margin: 16px 0 8px; color: #f0f6fc;">击杀助攻 (k)</h3>';
+      html += renderJsonTree(player.k);
+      
+      html += '</div></div>';
+      html += '<button class="btn" onclick="renderView(\'players\')" style="margin-top: 16px;">返回列表</button>';
+      
+      content.innerHTML = html;
+      attachCollapsible();
+    }
+
+    function renderZones(container) {
+      let html = '';
+      
+      // 毒圈
+      html += '<div class="panel"><div class="panel-header"><span class="panel-title">毒圈数据 (z.b)</span></div><div class="panel-body">';
+      html += '<table><tr><th>阶段</th><th>开始时间</th><th>结束时间</th><th>开始半径</th><th>结束半径</th><th>中心X</th><th>中心Y</th></tr>';
+      replayData.z?.b?.forEach((zone, idx) => {
+        html += `<tr><td>${idx + 1}</td><td>${zone.b.t}</td><td>${zone.e.t}</td><td>${zone.b.r}</td><td>${zone.e.r}</td><td>${zone.b.x}</td><td>${zone.b.y}</td></tr>`;
+      });
+      html += '</table></div></div>';
+
+      // 安全区
+      html += '<div class="panel"><div class="panel-header"><span class="panel-title">安全区数据 (z.s)</span></div><div class="panel-body">';
+      html += '<table><tr><th>阶段</th><th>开始时间</th><th>结束时间</th><th>开始半径</th><th>结束半径</th><th>中心X</th><th>中心Y</th></tr>';
+      replayData.z?.s?.forEach((zone, idx) => {
+        html += `<tr><td>${idx + 1}</td><td>${zone.b.t}</td><td>${zone.e.t}</td><td>${zone.b.r}</td><td>${zone.e.r}</td><td>${zone.b.x}</td><td>${zone.b.y}</td></tr>`;
+      });
+      html += '</table></div></div>';
+
+      container.innerHTML = html;
+    }
+
+    function renderSpecialZones(container) {
+      let html = '';
+      
+      // 轰炸区
+      html += '<div class="panel"><div class="panel-header"><span class="panel-title">红区 (s.r)</span></div><div class="panel-body">';
+      html += '<table><tr><th>时间</th><th>X</th><th>Y</th><th>水平半径</th><th>垂直半径</th><th>状态</th><th>类型</th><th>ID</th></tr>';
+      replayData.s?.r?.forEach(zone => {
+        html += `<tr><td>${zone.t}</td><td>${zone.x}</td><td>${zone.y}</td><td>${zone.h}</td><td>${zone.v}</td><td>${zone.s}</td><td>${zone.p}</td><td>${zone.i}</td></tr>`;
+      });
+      html += '</table></div></div>';
+
+      // 黑区
+      html += '<div class="panel"><div class="panel-header"><span class="panel-title">黑区 (s.b)</span></div><div class="panel-body">';
+      html += '<table><tr><th>时间</th><th>X</th><th>Y</th><th>水平半径</th><th>垂直半径</th><th>状态</th><th>类型</th><th>ID</th></tr>';
+      replayData.s?.b?.forEach(zone => {
+        html += `<tr><td>${zone.t}</td><td>${zone.x}</td><td>${zone.y}</td><td>${zone.h}</td><td>${zone.v}</td><td>${zone.s}</td><td>${zone.p}</td><td>${zone.i}</td></tr>`;
+      });
+      html += '</table></div></div>';
+
+      container.innerHTML = html;
+    }
+
+    function renderCombats(container) {
+      let html = '<div class="panel"><div class="panel-header"><span class="panel-title">战斗数据 (c.a)</span></div><div class="panel-body">';
+      
+      const combats = replayData.c?.a;
+      if (combats) {
+        html += '<table><tr><th>时间</th><th>攻击者</th><th>受害者</th><th>伤害来源</th><th>伤害值</th></tr>';
+        const len = combats.t?.length || 0;
+        for (let i = 0; i < len; i++) {
+          const attacker = replayData.p[combats.a[i]]?.i?.n || `Player ${combats.a[i]}`;
+          const victim = replayData.p[combats.v[i]]?.i?.n || `Player ${combats.v[i]}`;
+          const causer = replayData.x[combats.c[i]] || 'Unknown';
+          html += `<tr><td>${combats.t[i]}</td><td>${attacker}</td><td>${victim}</td><td><code>${causer}</code></td><td>${combats.d[i]}</td></tr>`;
+        }
+        html += '</table>';
+      }
+      
+      html += '</div></div>';
+      container.innerHTML = html;
+    }
+
+    function renderCarePackages(container) {
+      let html = '<div class="panel"><div class="panel-header"><span class="panel-title">空投补给 (k)</span></div><div class="panel-body">';
+      html += '<table><tr><th>ID</th><th>生成时间</th><th>落地时间</th><th>X</th><th>Y</th><th>物品</th></tr>';
+      replayData.k?.forEach(pkg => {
+        const items = pkg.l?.map(i => replayData.x[i]).join(', ') || '-';
+        html += `<tr><td>${pkg.i}</td><td>${pkg.s}</td><td>${pkg.t}</td><td>${pkg.x}</td><td>${pkg.y}</td><td style="max-width: 300px; overflow: hidden; text-overflow: ellipsis;">${items}</td></tr>`;
+      });
+      html += '</table></div></div>';
+      container.innerHTML = html;
+    }
+
+    function renderBluechip(container) {
+      let html = '';
+      
+      const b = replayData.b;
+      
+      html += '<div class="panel"><div class="panel-header"><span class="panel-title">拾取事件 (b.l)</span></div><div class="panel-body">';
+      html += '<table><tr><th>时间</th><th>使用者</th><th>拥有者</th></tr>';
+      b?.l?.forEach(evt => {
+        const user = evt.a === -1 ? 'System' : (replayData.p[evt.a]?.i?.n || `Player ${evt.a}`);
+        const owner = evt.b === -1 ? 'None' : (replayData.p[evt.b]?.i?.n || `Player ${evt.b}`);
+        html += `<tr><td>${evt.t}</td><td>${user}</td><td>${owner}</td></tr>`;
+      });
+      html += '</table></div></div>';
+
+      html += '<div class="panel"><div class="panel-header"><span class="panel-title">使用事件 (b.u)</span></div><div class="panel-body">';
+      html += '<table><tr><th>时间</th><th>使用者</th><th>拥有者</th></tr>';
+      b?.u?.forEach(evt => {
+        const user = evt.a === -1 ? 'System' : (replayData.p[evt.a]?.i?.n || `Player ${evt.a}`);
+        const owner = evt.b === -1 ? 'None' : (replayData.p[evt.b]?.i?.n || `Player ${evt.b}`);
+        html += `<tr><td>${evt.t}</td><td>${user}</td><td>${owner}</td></tr>`;
+      });
+      html += '</table></div></div>';
+
+      html += '<div class="panel"><div class="panel-header"><span class="panel-title">蓝色晶片基站 (b.w)</span></div><div class="panel-body">';
+      html += '<table><tr><th>时间</th><th>X</th><th>Y</th></tr>';
+      b?.w?.forEach(tower => {
+        html += `<tr><td>${tower.t}</td><td>${tower.x}</td><td>${tower.y}</td></tr>`;
+      });
+      html += '</table></div></div>';
+
+      container.innerHTML = html;
+    }
+
+    function renderRedeploy(container) {
+      let html = '<div class="panel"><div class="panel-header"><span class="panel-title">重新部署 (r)</span></div><div class="panel-body">';
+      html += `<p style="color: #8b949e; margin-bottom: 16px;">时间: ${replayData.r?.t || 'N/A'}</p>`;
+      html += '<table><tr><th>玩家</th></tr>';
+      replayData.r?.c?.forEach(playerIdx => {
+        const player = replayData.p[playerIdx];
+        html += `<tr><td>${player?.i?.n || `Player ${playerIdx}`}</td></tr>`;
+      });
+      html += '</table></div></div>';
+      container.innerHTML = html;
+    }
+
+    function renderKills(container) {
+      let html = '<div class="panel"><div class="panel-header"><span class="panel-title">击杀记录 (f)</span></div><div class="panel-body">';
+      html += '<table><tr><th>时间</th><th>攻击者</th><th>受害者</th><th>爆头</th><th>击杀类型</th><th>武器</th></tr>';
+      replayData.f?.forEach(kill => {
+        const attacker = replayData.p[kill.a]?.i?.n || `Player ${kill.a}`;
+        const victim = replayData.p[kill.b]?.i?.n || `Player ${kill.b}`;
+        const weapon = kill.w === -1 ? 'Unknown' : replayData.x[kill.w];
+        const killType = ['Kill', 'DBNO', 'GroggyDamageKill'][kill.y] || 'Unknown';
+        html += `<tr><td>${kill.t}</td><td>${attacker}</td><td>${victim}</td><td>${kill.h ? 'Yes' : 'No'}</td><td>${killType}</td><td><code>${weapon}</code></td></tr>`;
+      });
+      html += '</table></div></div>';
+      container.innerHTML = html;
+    }
+
+    let monacoEditor = null;
+
+    function renderRaw(container) {
+      container.innerHTML = `
+        <div class="panel">
+          <div class="panel-header">
+            <span class="panel-title">原始JSON数据</span>
+            <button class="btn" onclick="exportData()">导出JSON</button>
+          </div>
+          <div class="panel-body" style="padding: 0;">
+            <div id="json-editor" style="width: 100%; height: 600px; border-radius: 0 0 6px 6px;"></div>
+          </div>
+        </div>
+      `;
+
+      // 初始化Monaco Editor
+      if (typeof monaco !== 'undefined') {
+        initMonacoEditor();
+      } else {
+        // 等待Monaco加载完成
+        window.require.config({ paths: { 'vs': 'https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.44.0/min/vs' }});
+        window.require(['vs/editor/editor.main'], function() {
+          initMonacoEditor();
+        });
+      }
+    }
+
+    function initMonacoEditor() {
+      const editorContainer = document.getElementById('json-editor');
+      if (!editorContainer || !replayData) return;
+
+      monacoEditor = monaco.editor.create(editorContainer, {
+        value: JSON.stringify(replayData, null, 2),
+        language: 'json',
+        theme: 'vs-dark',
+        readOnly: true,
+        automaticLayout: true,
+        minimap: { enabled: true },
+        scrollBeyondLastLine: false,
+        fontSize: 13,
+        lineNumbers: 'on',
+        renderWhitespace: 'selection',
+        folding: true,
+        foldingStrategy: 'indentation',
+        showFoldingControls: 'always',
+        matchBrackets: 'always',
+        autoIndent: 'full',
+        formatOnPaste: true,
+        formatOnType: true
+      });
+    }
+
+    // JSON树渲染
+    function renderJsonTree(obj, key) {
+      if (obj === null) return `<span class="json-null">null</span>`;
+      if (typeof obj === 'boolean') return `<span class="json-boolean">${obj}</span>`;
+      if (typeof obj === 'number') return `<span class="json-number">${obj}</span>`;
+      if (typeof obj === 'string') return `<span class="json-string">"${obj}"</span>`;
+      
+      if (Array.isArray(obj)) {
+        if (obj.length === 0) return '[]';
+        let html = `<span class="collapsible">[</span><span class="json-node">`;
+        obj.slice(0, 50).forEach((item, i) => {
+          html += renderJsonTree(item);
+          if (i < Math.min(obj.length, 50) - 1) html += ',';
+          html += '<br>';
+        });
+        if (obj.length > 50) html += `<span style="color: #8b949e;">... and ${obj.length - 50} more</span><br>`;
+        html += '</span>]';
+        return html;
+      }
+      
+      const keys = Object.keys(obj);
+      if (keys.length === 0) return '{}';
+      let html = `<span class="collapsible">{</span><div class="json-node">`;
+      keys.forEach((k, i) => {
+        html += `<span class="json-key">"${k}"</span>: ${renderJsonTree(obj[k], k)}`;
+        if (i < keys.length - 1) html += ',';
+        html += '<br>';
+      });
+      html += '</div>}';
+      return html;
+    }
+
+    function attachCollapsible() {
+      document.querySelectorAll('.collapsible').forEach(el => {
+        el.addEventListener('click', () => {
+          el.classList.toggle('collapsed');
+        });
+      });
+    }
+
+    // ========== 2Dreplay ==========
+    let replayEngine = null;
+
+    function renderReplay(container) {
+      if (!replayData) return;
+
+      container.innerHTML = `
+        <div id="replay-container">
+          <div id="replay-canvas-container">
+            <div id="replay-map-container"></div>
+            <canvas id="replay-canvas"></canvas>
+            <div id="replay-stats">
+              <div>时间: <span id="replay-time">0:00</span> / <span id="replay-total">0:00</span> | 帧: <span id="replay-frame">0</span> | 速度: <span id="replay-speed">1x</span></div>
+              <div>存活: <span id="replay-alive">0</span> | 队伍: <span id="replay-teams">0</span> | 缩放: <span id="replay-zoom">1.0x</span></div>
+              <div>蓝圈: <span id="replay-bluezone">-</span> | 安全区: <span id="replay-safezone">-</span> | 红区: <span id="replay-redzone">-</span></div>
+              <div>战斗: <span id="replay-combat">-</span> | 空投: <span id="replay-carepackage">-</span> | 击杀: <span id="replay-kills">-</span></div>
+            </div>
+          </div>
+          <div id="replay-controls">
+            <input type="range" id="replay-timeline" min="0" max="1000" value="0">
+            <div class="replay-toolbar">
+              <button class="btn" id="replay-play-btn" onclick="replayEngine.togglePlay()">播放</button>
+              <button class="btn" onclick="replayEngine.reset()">重置</button>
+              <button class="btn speed-btn" data-speed="1" onclick="replayEngine.setSpeed(1)">1x</button>
+              <button class="btn speed-btn" data-speed="2" onclick="replayEngine.setSpeed(2)">2x</button>
+              <button class="btn speed-btn" data-speed="4" onclick="replayEngine.setSpeed(4)">4x</button>
+              <button class="btn speed-btn" data-speed="8" onclick="replayEngine.setSpeed(8)">8x</button>
+              <div class="replay-info">
+                <span>地图: ${replayData.t?.m || 'Unknown'}</span>
+                <span>尺寸: ${replayData.t?.w || 0}x${replayData.t?.h || 0}</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      `;
+
+      replayEngine = new ReplayEngine(replayData);
+      replayEngine.init();
+    }
+
+    class ReplayEngine {
+      constructor(data) {
+        this.data = data;
+        this.canvas = null;
+        this.ctx = null;
+        this.isPlaying = false;
+        this.currentTime = 0;
+        this.totalTime = data.m?.l || 1450;
+        this.speed = 1;
+        this.animationId = null;
+        this.lastFrameTime = 0;
+
+        this.mapWidth = (data.t?.w || 816000) / 100;
+        this.mapHeight = (data.t?.h || 816000) / 100;
+        this.canvasSize = 800;
+
+        this.scaleLevel = 1;
+        this.translateCoord = { x: 0, y: 0 };
+        this.minScale = 1;
+        this.maxScale = 30;
+
+        this.isDragging = false;
+        this.lastMousePos = { x: 0, y: 0 };
+
+        this.playerBasicInfo = [];
+        this.processedPlayerData = [];
+
+        this.zoneData = [];
+
+        this.images = {};
+        this.cdnBaseUrl = 'https://prod-live-images.playbattlegrounds.com/27036d1894357a78';
+      }
+
+      async init() {
+        this.canvas = document.getElementById('replay-canvas');
+        this.ctx = this.canvas.getContext('2d');
+
+        this.setupCanvas();
+        await this.loadMapImages();
+        this.processPlayerData();
+        this.processZoneData();
+        this.setupEvents();
+        this.updateUI();
+        this.render();
+      }
+
+      getMapImageName(mapName) {
+        const mapNames = {
+          'Baltic_Main': 'erangel',
+          'Desert_Main': 'miramar',
+          'Savage_Main': 'sanhok',
+          'DihorOtok_Main': 'vikendi',
+          'Summerland_Main': 'karakin',
+          'Chimera_Main': 'paramo',
+          'Heaven_Main': 'haven',
+          'Kiki_Main': 'deston',
+          'Tiger_Main': 'taego',
+          'Neon_Main': 'rondo'
+        };
+        return mapNames[mapName] || 'erangel';
+      }
+
+      async getCdnBaseUrl() {
+        return 'https://prod-live-images.playbattlegrounds.com/27036d1894357a78';
+      }
+
+      getKillFeedIcon(iconName) {
+        return `${this.cdnBaseUrl}/webreplay/icons/killfeed/${iconName.toLowerCase()}.png`;
+      }
+
+      getObserverImage(imageName) {
+        return `${this.cdnBaseUrl}/webreplay/icons/observer/${imageName.toLowerCase()}.png`;
+      }
+
+      loadImage(url) {
+        if (this.images[url]) {
+          return this.images[url];
+        }
+        const img = new Image();
+        img.src = url;
+        this.images[url] = img;
+        return img;
+      }
+
+      getDividedMapUrls(version, mapImageName, baseUrl) {
+        return [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16].map(num => {
+          const padded = String(num).padStart(2, '0');
+          return `${baseUrl}/webreplay/map-images/${version}/${mapImageName}/${mapImageName}_${padded}.jpg`;
+        });
+      }
+
+      async loadMapImages() {
+        const mapContainer = document.getElementById('replay-map-container');
+        if (!mapContainer) return;
+
+        const mapName = this.data.t?.m || 'Baltic_Main';
+        const mapImageName = this.getMapImageName(mapName);
+        const baseUrl = await this.getCdnBaseUrl();
+        const version = 'default';
+
+        const lowResUrl = `${baseUrl}/webreplay/map-images/${version}/${mapImageName}/${mapImageName}_low_res.jpg`;
+        const defaultLowResUrl = `${baseUrl}/webreplay/map-images/default/${mapImageName}/${mapImageName}_low_res.jpg`;
+
+        const lowResImg = document.createElement('img');
+        lowResImg.className = 'low-res-img';
+        lowResImg.src = lowResUrl;
+        lowResImg.onerror = () => {
+          lowResImg.src = defaultLowResUrl;
+        };
+        mapContainer.appendChild(lowResImg);
+
+        const dividedUrls = this.getDividedMapUrls(version, mapImageName, baseUrl);
+        const defaultDividedUrls = this.getDividedMapUrls('default', mapImageName, baseUrl);
+
+        dividedUrls.forEach((url, index) => {
+          const img = document.createElement('img');
+          img.className = 'tiled-img';
+          img.src = url;
+          img.onerror = () => {
+            img.src = defaultDividedUrls[index];
+          };
+          mapContainer.appendChild(img);
+        });
+      }
+
+      setupCanvas() {
+        const container = document.getElementById('replay-canvas-container');
+        const size = Math.min(container.clientWidth, container.clientHeight);
+        this.canvasSize = size || 800;
+
+        const dpr = window.devicePixelRatio || 1;
+        this.canvas.width = this.canvasSize * dpr;
+        this.canvas.height = this.canvasSize * dpr;
+        this.canvas.style.width = `${this.canvasSize}px`;
+        this.canvas.style.height = `${this.canvasSize}px`;
+        this.ctx.scale(dpr, dpr);
+      }
+
+      translateX(x) {
+        const center = Math.floor(this.canvasSize / 2);
+        const scaled = this.toScale(x) - center;
+        return Math.floor(scaled * this.scaleLevel + center + this.translateCoord.x);
+      }
+
+      translateY(y) {
+        const center = Math.floor(this.canvasSize / 2);
+        const scaled = this.toScale(y) - center;
+        return Math.floor(scaled * this.scaleLevel + center + this.translateCoord.y);
+      }
+
+      scale(value) {
+        return this.toScale(value) * this.scaleLevel;
+      }
+
+      toScale(value) {
+        const maxMapSize = Math.max(this.mapWidth, this.mapHeight);
+        return value / maxMapSize * this.canvasSize;
+      }
+
+      processPlayerData() {
+        this.playerBasicInfo = this.data.p.map((player, idx) => ({
+          index: idx,
+          accountId: player.i.a,
+          nickname: player.i.n,
+          clanTag: player.i.c || '',
+          teamId: player.i.t,
+          origin: player.i.o,
+          teamColor: this.getTeamColor(player.i.t)
+        }));
+      }
+
+      getTeamColor(teamId) {
+        const colors = ['#FF6B6B', '#4ECDC4', '#45B7D1', '#FFA07A', '#98D8C8', '#F7DC6F', '#BB8FCE', '#85C1E2'];
+        return colors[(teamId - 1) % colors.length] || '#888888';
+      }
+
+      processZoneData() {
+        const fps = 60;
+        const dataInterval = Math.floor(1000 / fps);
+        const totalMs = this.totalTime * 1000;
+        const frameCount = Math.floor(totalMs / dataInterval) + 1;
+
+        this.zoneData = new Array(frameCount).fill(null).map(() => ({
+          bluezone: null,
+          safezone: null,
+          redzones: [],
+          blackzones: []
+        }));
+
+        // 毒圈和安全区
+        ['b', 's'].forEach(type => {
+          const zones = this.data.z?.[type] || [];
+          zones.forEach(zone => {
+            const startMs = Math.floor(zone.b.t * 1000);
+            const endMs = Math.min(Math.floor(zone.e.t * 1000), totalMs);
+
+            for (let t = startMs; t <= endMs; t += dataInterval) {
+              const frameIdx = Math.floor(t / dataInterval);
+              if (frameIdx >= frameCount) break;
+
+              const progress = (t - startMs) / (endMs - startMs);
+              const x = zone.b.x + (zone.e.x - zone.b.x) * progress;
+              const y = zone.b.y + (zone.e.y - zone.b.y) * progress;
+              const radius = zone.b.r + (zone.e.r - zone.b.r) * progress;
+
+              if (type === 'b') {
+                this.zoneData[frameIdx].bluezone = { x, y, radius };
+              } else {
+                this.zoneData[frameIdx].safezone = { x, y, radius };
+              }
+            }
+          });
+        });
+
+        // 轰炸区和黑区
+        ['r', 'b'].forEach(type => {
+          const zones = this.data.s?.[type === 'r' ? 'r' : 'b'] || [];
+          const zoneType = type === 'r' ? 'redzones' : 'blackzones';
+
+          // 按uniqueId分组
+          const zoneGroups = new Map();
+          zones.forEach(z => {
+            if (!zoneGroups.has(z.i)) zoneGroups.set(z.i, []);
+            zoneGroups.get(z.i).push(z);
+          });
+
+          zoneGroups.forEach(group => {
+            for (let i = 0; i < group.length - 1; i++) {
+              const start = group[i];
+              const end = group[i + 1];
+              const startMs = Math.floor(start.t * 1000);
+              const endMs = Math.min(Math.floor(end.t * 1000), totalMs);
+
+              for (let t = startMs; t <= endMs; t += dataInterval) {
+                const frameIdx = Math.floor(t / dataInterval);
+                if (frameIdx >= frameCount) break;
+
+                const progress = (t - startMs) / (endMs - startMs);
+                const x = start.x + (end.x - start.x) * progress;
+                const y = start.y + (end.y - start.y) * progress;
+                const radius = start.h + (end.h - start.h) * progress;
+
+                this.zoneData[frameIdx][zoneType].push({ x, y, radius });
+              }
+            }
+          });
+        });
+      }
+
+      // 获取玩家在指定时间的状态
+      getPlayerStatusAtTime(playerIdx, timeSec) {
+        const player = this.data.p[playerIdx];
+        if (!player) return null;
+
+        const status = {
+          location: null,
+          health: 100,
+          lifeState: 0, // 0=ALIVE, 1=DBNO, 2=DEAD
+          isVehicleRide: false,
+          weapon: '',
+          killCount: 0,
+          assistCount: 0
+        };
+
+        const positions = player.p;
+        if (positions && positions.t) {
+          for (let i = 0; i < positions.t.length - 1; i++) {
+            if (timeSec >= positions.t[i] && timeSec <= positions.t[i + 1]) {
+              const t1 = positions.t[i];
+              const t2 = positions.t[i + 1];
+              const progress = (timeSec - t1) / (t2 - t1);
+              status.location = {
+                x: positions.x[i] + (positions.x[i + 1] - positions.x[i]) * progress,
+                y: positions.y[i] + (positions.y[i + 1] - positions.y[i]) * progress
+              };
+              break;
+            }
+          }
+          // 如果时间在最后一个点之后
+          if (!status.location && timeSec >= positions.t[positions.t.length - 1]) {
+            const lastIdx = positions.t.length - 1;
+            status.location = { x: positions.x[lastIdx], y: positions.y[lastIdx] };
+          }
+        }
+
+        const healths = player.h;
+        if (healths && healths.t) {
+          for (let i = 0; i < healths.t.length; i++) {
+            if (timeSec >= healths.t[i]) {
+              status.health = healths.h[i];
+            }
+          }
+        }
+
+        const lifeEvents = player.l;
+        if (lifeEvents && lifeEvents.t) {
+          for (let i = 0; i < lifeEvents.t.length; i++) {
+            if (timeSec >= lifeEvents.t[i]) {
+              const eventType = lifeEvents.e[i];
+              if (eventType === 1) status.lifeState = 1; // Groggy
+              else if (eventType === 2) status.lifeState = 2; // Died
+              else if (eventType === 3 || eventType === 4) status.lifeState = 0; // Revive/Redeploy
+            }
+          }
+        }
+
+        const vehicleEvents = player.v;
+        if (vehicleEvents && vehicleEvents.t) {
+          for (let i = 0; i < vehicleEvents.t.length; i++) {
+            if (timeSec >= vehicleEvents.t[i]) {
+              status.isVehicleRide = vehicleEvents.e[i] === 0; // 0=Ride, 1=Leave
+            }
+          }
+        }
+
+        const weapons = player.w;
+        if (weapons && weapons.t) {
+          for (let i = 0; i < weapons.t.length; i++) {
+            if (timeSec >= weapons.t[i]) {
+              const weaponIdx = weapons.w[i];
+              status.weapon = this.data.x[weaponIdx] || '';
+            }
+          }
+        }
+
+        const killAssists = player.k;
+        if (killAssists && killAssists.t) {
+          for (let i = 0; i < killAssists.t.length; i++) {
+            if (timeSec >= killAssists.t[i]) {
+              status.killCount = killAssists.k[i];
+              status.assistCount = killAssists.a[i];
+            }
+          }
+        }
+
+        return status;
+      }
+
+      // 交互地图
+      setupEvents() {
+        const timeline = document.getElementById('replay-timeline');
+        timeline.max = this.totalTime * 1000;
+        timeline.addEventListener('input', (e) => {
+          this.currentTime = parseInt(e.target.value) / 1000;
+          this.render();
+          this.updateUI();
+        });
+
+        this.canvas.addEventListener('mousedown', (e) => {
+          this.isDragging = true;
+          this.lastMousePos = { x: e.clientX, y: e.clientY };
+        });
+
+        window.addEventListener('mousemove', (e) => {
+          if (!this.isDragging) return;
+          const dx = e.clientX - this.lastMousePos.x;
+          const dy = e.clientY - this.lastMousePos.y;
+          this.lastMousePos = { x: e.clientX, y: e.clientY };
+          this.drag(dx, dy);
+        });
+
+        window.addEventListener('mouseup', () => {
+          this.isDragging = false;
+        });
+
+
+
+        this.canvas.addEventListener('wheel', (e) => {
+          e.preventDefault();
+          const rect = this.canvas.getBoundingClientRect();
+          const mouseX = e.clientX - rect.left;
+          const mouseY = e.clientY - rect.top;
+          const zoomFactor = e.deltaY > 0 ? 0.9 : 1.1;
+          this.zoomAt(mouseX, mouseY, zoomFactor);
+        });
+      }
+
+      reverseTranslateX(screenX) {
+        const center = Math.floor(this.canvasSize / 2);
+        const scaled = (screenX - this.translateCoord.x - center) / this.scaleLevel + center;
+        return scaled / this.canvasSize * Math.max(this.mapWidth, this.mapHeight);
+      }
+
+      reverseTranslateY(screenY) {
+        const center = Math.floor(this.canvasSize / 2);
+        const scaled = (screenY - this.translateCoord.y - center) / this.scaleLevel + center;
+        return scaled / this.canvasSize * Math.max(this.mapWidth, this.mapHeight);
+      }
+
+      // 拖拽
+      drag(dx, dy) {
+        const threshold = this.getOffsetThreshold();
+        const newX = this.translateCoord.x + dx;
+        const newY = this.translateCoord.y + dy;
+
+        if (newX >= -threshold && newX <= threshold) {
+          this.translateCoord.x = newX;
+        }
+        if (newY >= -threshold && newY <= threshold) {
+          this.translateCoord.y = newY;
+        }
+        this.render();
+      }
+
+      // 缩放
+      zoom(factor) {
+        const newScale = this.clampScale(this.scaleLevel * factor);
+        if (newScale !== this.scaleLevel) {
+          this.zoomingOffset(newScale / this.scaleLevel);
+          this.scaleLevel = newScale;
+          this.correctOffset();
+          this.render();
+          this.updateUI();
+        }
+      }
+
+      zoomAt(mouseX, mouseY, factor) {
+        const newScale = this.clampScale(this.scaleLevel * factor);
+        if (newScale !== this.scaleLevel) {
+          const offsetX = (mouseX - this.canvasSize / 2) * -1;
+          const offsetY = (mouseY - this.canvasSize / 2) * -1;
+          this.zoomingOffset(newScale / this.scaleLevel);
+          this.scaleLevel = newScale;
+          if (factor > 1) {
+            this.drag(offsetX / 10, offsetY / 10);
+          }
+          this.correctOffset();
+          this.render();
+          this.updateUI();
+        }
+      }
+
+      clampScale(scale) {
+        return Math.max(this.minScale, Math.min(this.maxScale, scale));
+      }
+
+      zoomingOffset(ratio) {
+        this.translateCoord.x = Math.floor(this.translateCoord.x * ratio);
+        this.translateCoord.y = Math.floor(this.translateCoord.y * ratio);
+      }
+
+      correctOffset() {
+        const threshold = this.getOffsetThreshold();
+        this.translateCoord.x = Math.max(-threshold, Math.min(threshold, this.translateCoord.x));
+        this.translateCoord.y = Math.max(-threshold, Math.min(threshold, this.translateCoord.y));
+      }
+
+      getOffsetThreshold() {
+        return Math.floor((this.canvasSize * this.scaleLevel - this.canvasSize) / 2);
+      }
+
+      togglePlay() {
+        if (this.isPlaying) {
+          this.pause();
+        } else {
+          this.play();
+        }
+      }
+
+      play() {
+        this.isPlaying = true;
+        document.getElementById('replay-play-btn').textContent = '暂停';
+        this.lastFrameTime = performance.now();
+        this.loop();
+      }
+
+      pause() {
+        this.isPlaying = false;
+        document.getElementById('replay-play-btn').textContent = '播放';
+        if (this.animationId) {
+          cancelAnimationFrame(this.animationId);
+        }
+      }
+
+      reset() {
+        this.pause();
+        this.currentTime = 0;
+        this.scaleLevel = 1;
+        this.translateCoord = { x: 0, y: 0 };
+        this.render();
+        this.updateUI();
+      }
+
+      setSpeed(speed) {
+        this.speed = speed;
+        document.querySelectorAll('.speed-btn').forEach(btn => {
+          btn.classList.toggle('active', parseInt(btn.dataset.speed) === speed);
+        });
+      }
+
+      loop() {
+        if (!this.isPlaying) return;
+
+        const now = performance.now();
+        const delta = now - this.lastFrameTime;
+        this.lastFrameTime = now;
+
+        this.currentTime += (delta * this.speed) / 1000;
+
+        if (this.currentTime >= this.totalTime) {
+          this.currentTime = this.totalTime;
+          this.pause();
+        }
+
+        this.render();
+        this.updateUI();
+        this.animationId = requestAnimationFrame(() => this.loop());
+      }
+
+      updateUI() {
+        const timeline = document.getElementById('replay-timeline');
+        if (timeline) timeline.value = this.currentTime * 1000;
+
+        const formatTime = (sec) => {
+          const m = Math.floor(sec / 60);
+          const s = Math.floor(sec % 60);
+          return `${m}:${s.toString().padStart(2, '0')}`;
+        };
+
+        const frameIdx = Math.floor(this.currentTime * 60);
+        const zones = this.zoneData[frameIdx] || {};
+
+        document.getElementById('replay-time').textContent = formatTime(this.currentTime);
+        document.getElementById('replay-total').textContent = formatTime(this.totalTime);
+        document.getElementById('replay-frame').textContent = frameIdx;
+        document.getElementById('replay-speed').textContent = `${this.speed}x`;
+        document.getElementById('replay-zoom').textContent = this.scaleLevel.toFixed(2) + 'x';
+
+        // 蓝圈信息
+        const bluezoneEl = document.getElementById('replay-bluezone');
+        if (zones.bluezone) {
+          bluezoneEl.textContent = `R=${Math.round(zones.bluezone.radius)}`;
+        } else {
+          bluezoneEl.textContent = '-';
+        }
+
+        // 安全区信息
+        const safezoneEl = document.getElementById('replay-safezone');
+        if (zones.safezone) {
+          safezoneEl.textContent = `R=${Math.round(zones.safezone.radius)}`;
+        } else {
+          safezoneEl.textContent = '-';
+        }
+
+        // 轰炸区信息
+        const redzoneEl = document.getElementById('replay-redzone');
+        if (zones.redzones && zones.redzones.length > 0) {
+          redzoneEl.textContent = `${zones.redzones.length}个`;
+        } else {
+          redzoneEl.textContent = '-';
+        }
+
+        // 计算存活玩家和队伍数
+        let aliveCount = 0;
+        const aliveTeams = new Set();
+        this.playerBasicInfo.forEach((info, idx) => {
+          const status = this.getPlayerStatusAtTime(idx, this.currentTime);
+          if (status && status.lifeState !== 2) {
+            aliveCount++;
+            aliveTeams.add(info.teamId);
+          }
+        });
+        document.getElementById('replay-alive').textContent = aliveCount;
+        document.getElementById('replay-teams').textContent = aliveTeams.size;
+
+        // 当前战斗事件数
+        const combats = this.data.c?.a;
+        let currentCombats = 0;
+        if (combats && combats.t) {
+          for (let i = 0; i < combats.t.length; i++) {
+            if (Math.abs(this.currentTime - combats.t[i]) <= 1) {
+              currentCombats++;
+            }
+          }
+        }
+        document.getElementById('replay-combat').textContent = currentCombats;
+
+        // 当前空投数
+        const carePackages = this.data.k?.filter(pkg => pkg.s !== -1 && this.currentTime >= pkg.s) || [];
+        document.getElementById('replay-carepackage').textContent = carePackages.length;
+
+        // 当前击杀数
+        const recentKills = this.data.f?.filter(k => Math.abs(k.t - this.currentTime) < 2).length || 0;
+        document.getElementById('replay-kills').textContent = recentKills;
+      }
+
+      render() {
+        const ctx = this.ctx;
+        const size = this.canvasSize;
+
+        // 清空画布
+        ctx.clearRect(0, 0, size, size);
+
+        // 绘制网格
+        this.drawGrid();
+
+        // 绘制安全区/毒圈
+        this.drawZones();
+
+        // 绘制空投
+        this.drawCarePackages();
+
+        // 绘制玩家
+        this.drawPlayers();
+
+        // 绘制战斗特效
+        this.drawCombats();
+
+        // 更新地图容器变换
+        this.updateMapTransform();
+      }
+
+      updateMapTransform() {
+        const mapContainer = document.getElementById('replay-map-container');
+        if (mapContainer) {
+          const cssSize = parseFloat(this.canvas.style.width);
+          const center = cssSize / 2;
+          mapContainer.style.transformOrigin = `${center}px ${center}px`;
+          mapContainer.style.transform = `translate(${this.translateCoord.x}px, ${this.translateCoord.y}px) scale(${this.scaleLevel})`;
+        }
+      }
+
+      drawGrid() {
+        const ctx = this.ctx;
+        const mapW = this.mapWidth;
+        const mapH = this.mapHeight;
+        const rows = this.data.t?.r || 8;
+        const cols = this.data.t?.c || 8;
+
+        ctx.strokeStyle = 'rgba(0, 0, 0, 0.3)';
+        ctx.lineWidth = 1;
+
+        const xStep = mapW / cols;
+        const yStep = mapH / rows;
+
+        for (let i = 1; i < cols; i++) {
+          const x = this.translateX(i * xStep);
+          ctx.beginPath();
+          ctx.moveTo(x, 0);
+          ctx.lineTo(x, this.translateY(mapH));
+          ctx.stroke();
+        }
+
+        for (let i = 1; i < rows; i++) {
+          const y = this.translateY(i * yStep);
+          ctx.beginPath();
+          ctx.moveTo(0, y);
+          ctx.lineTo(this.translateX(mapW), y);
+          ctx.stroke();
+        }
+      }
+
+      drawZones() {
+        const frameIdx = Math.floor(this.currentTime * 60);
+        const zones = this.zoneData[frameIdx] || {};
+        const ctx = this.ctx;
+
+        // 只在蓝圈半径小于地图尺寸时才绘制，避免初始时覆盖整个地图
+        if (zones.bluezone && zones.bluezone.radius < this.mapWidth * 0.8) {
+          ctx.fillStyle = 'rgba(0, 44, 156, 0.5)';
+          const coverSize = Math.max(this.canvas.width, this.canvas.height);
+          ctx.fillRect(-coverSize, -coverSize, coverSize * 3, coverSize * 3);
+          ctx.globalCompositeOperation = 'destination-out';
+          ctx.beginPath();
+          ctx.fillStyle = 'white';
+          ctx.arc(
+            this.translateX(zones.bluezone.x),
+            this.translateY(zones.bluezone.y),
+            this.scale(zones.bluezone.radius),
+            0, Math.PI * 2
+          );
+          ctx.fill();
+          ctx.globalCompositeOperation = 'source-over';
+        }
+
+        if (zones.safezone) {
+          ctx.beginPath();
+          ctx.strokeStyle = 'rgba(238, 238, 238, 0.8)';
+          ctx.lineWidth = 2;
+          ctx.arc(
+            this.translateX(zones.safezone.x),
+            this.translateY(zones.safezone.y),
+            this.scale(zones.safezone.radius),
+            0, Math.PI * 2
+          );
+          ctx.stroke();
+        }
+
+        zones.redzones?.forEach(zone => {
+          ctx.beginPath();
+          ctx.fillStyle = 'rgba(153, 25, 33, 0.5)';
+          ctx.arc(
+            this.translateX(zone.x),
+            this.translateY(zone.y),
+            this.scale(zone.radius),
+            0, Math.PI * 2
+          );
+          ctx.fill();
+        });
+
+        zones.blackzones?.forEach(zone => {
+          ctx.beginPath();
+          ctx.fillStyle = 'rgba(99, 23, 112, 0.5)';
+          ctx.arc(
+            this.translateX(zone.x),
+            this.translateY(zone.y),
+            this.scale(zone.radius),
+            0, Math.PI * 2
+          );
+          ctx.fill();
+        });
+      }
+
+      drawCarePackages() {
+        const ctx = this.ctx;
+        this.data.k?.filter(pkg => pkg.s !== -1).forEach(pkg => { // 过滤掉spawnTime为-1的空投
+          // 空投掉落后常驻
+          if (this.currentTime >= pkg.s) {
+            const isLanded = this.currentTime >= pkg.t;
+            const x = this.translateX(pkg.x);
+            const y = this.translateY(pkg.y);
+
+            const iconName = isLanded ? 'CarePackageLand' : 'CarePackageSpawn';
+            const imgUrl = this.getObserverImage(iconName);
+            const img = this.loadImage(imgUrl);
+
+            if (img.complete && img.naturalWidth > 0) {
+              const drawWidth = 35;
+              const drawHeight = 45;
+              ctx.drawImage(img, x - drawWidth / 2, y - drawHeight * 0.75, drawWidth, drawHeight);
+            } else {
+              ctx.fillStyle = isLanded ? '#FFA500' : '#FFD700';
+              const size = 30;
+              ctx.fillRect(x - size / 2, y - size / 2, size, size);
+            }
+          }
+        });
+      }
+
+      drawPlayers() {
+        const ctx = this.ctx;
+
+        const myAccountId = this.data.m?.a;
+        const myPlayerIdx = this.playerBasicInfo.findIndex(p => p.accountId === myAccountId);
+        const myInfo = myPlayerIdx >= 0 ? this.playerBasicInfo[myPlayerIdx] : null;
+
+        this.playerBasicInfo.forEach((info, idx) => {
+          const status = this.getPlayerStatusAtTime(idx, this.currentTime);
+          if (!status || !status.location || status.lifeState === 2) return;
+
+          const x = this.translateX(status.location.x);
+          const y = this.translateY(status.location.y);
+          const radius = 9;
+
+          this.drawPlayerNickname(ctx, x, y, radius, info);
+          this.drawPlayerCircle(ctx, x, y, radius, info, status, myInfo);
+        });
+      }
+
+      drawPlayerNickname(ctx, x, y, radius, info) {
+        const fontSize = 12;
+        const paddingX = 3;
+        const paddingY = 4;
+        const rectHeight = 16;
+
+        ctx.font = `${fontSize}px sans-serif`;
+        const name = info.clanTag ? `[${info.clanTag}] ${info.nickname}` : info.nickname;
+        const textMetrics = ctx.measureText(name);
+        const textWidth = textMetrics.width;
+
+        const labelY = y + radius + 4;
+        const rectX = x - textWidth / 2 - paddingX;
+        const rectWidth = textWidth + paddingX * 2;
+
+        ctx.fillStyle = info.teamColor + 'B3';
+        ctx.fillRect(rectX, labelY, rectWidth, rectHeight);
+
+        ctx.fillStyle = '#EDEDF2';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(name, x, labelY + rectHeight / 2 + 1);
+      }
+
+      drawPlayerCircle(ctx, x, y, radius, info, status, myInfo) {
+        ctx.beginPath();
+        ctx.fillStyle = info.teamColor + 'B3';
+        ctx.arc(x, y, radius, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.closePath();
+
+        this.drawPlayerCircleBorder(ctx, x, y, radius, info, myInfo);
+        this.drawPlayerCircleStatus(ctx, x, y, radius, info, status);
+      }
+
+      drawPlayerCircleBorder(ctx, x, y, radius, info, myInfo) {
+        const lineWidth1 = 1;
+        const lineWidth2 = 2;
+
+        const isMe = myInfo && info.accountId === myInfo.accountId;
+        const isTeammate = myInfo && info.teamId === myInfo.teamId && !isMe;
+
+        if (isMe) {
+          const outerRadius = radius + lineWidth2;
+          this.drawCircleLine(ctx, x, y, outerRadius, lineWidth2, '#ffffff');
+          this.drawCircleLine(ctx, x, y, outerRadius + lineWidth2, lineWidth1, 'rgba(0, 0, 0, 0.5)');
+        } else if (isTeammate) {
+          this.drawCircleLine(ctx, x, y, radius, lineWidth1, '#ffffff');
+          this.drawCircleLine(ctx, x, y, radius + lineWidth1, lineWidth1, 'rgba(0, 0, 0, 0.5)');
+        } else {
+          this.drawCircleLine(ctx, x, y, radius, lineWidth1, 'rgba(0, 0, 0, 0.5)');
+        }
+      }
+
+      drawCircleLine(ctx, x, y, radius, lineWidth, color) {
+        ctx.beginPath();
+        ctx.strokeStyle = color;
+        ctx.lineWidth = lineWidth;
+        ctx.arc(x, y, radius, 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.closePath();
+      }
+
+      drawPlayerCircleStatus(ctx, x, y, radius, info, status) {
+        if (status.lifeState === 1) {
+          const dbnoUrl = this.getObserverImage('Dbno');
+          const dbnoImg = this.loadImage(dbnoUrl);
+          if (dbnoImg.complete && dbnoImg.naturalWidth > 0) {
+            ctx.drawImage(dbnoImg, x - radius, y - radius, radius * 2, radius * 2);
+          }
+          return;
+        }
+
+        // 载具状态
+        if (status.isVehicleRide) {
+          const vehicleUrl = this.getObserverImage('VehicleRide');
+          const vehicleImg = this.loadImage(vehicleUrl);
+          if (vehicleImg.complete && vehicleImg.naturalWidth > 0) {
+            ctx.drawImage(vehicleImg, x - radius, y - radius, radius * 2, radius * 2);
+          }
+          return;
+        }
+
+        const fontSize = 13;
+        ctx.font = `bold ${fontSize}px sans-serif`;
+        ctx.fillStyle = '#EDEDF2';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(info.teamId.toString(), x, y + 1);
+      }
+
+      drawCombats() {
+        const ctx = this.ctx;
+        const combats = this.data.c?.a;
+        if (!combats || !combats.t) return;
+
+        const attackerEffectDuration = 1;
+        const victimEffectDuration = 2;
+
+        for (let i = 0; i < combats.t.length; i++) {
+          const combatTime = combats.t[i];
+          const attackerIdx = combats.a[i];
+          const victimIdx = combats.v[i];
+
+          const damageCauserPartDescId = combats.d?.[i];
+          if (!damageCauserPartDescId || attackerIdx === -1 || attackerIdx === victimIdx) {
+            continue;
+          }
+
+          const timeDiff = this.currentTime - combatTime;
+
+          const attackerStatus = this.getPlayerStatusAtTime(attackerIdx, this.currentTime);
+          const victimStatus = this.getPlayerStatusAtTime(victimIdx, this.currentTime);
+
+          if (!attackerStatus?.location || !victimStatus?.location) continue;
+
+          const attackerX = this.translateX(attackerStatus.location.x);
+          const attackerY = this.translateY(attackerStatus.location.y);
+          const victimX = this.translateX(victimStatus.location.x);
+          const victimY = this.translateY(victimStatus.location.y);
+
+          if (timeDiff >= 0 && timeDiff <= attackerEffectDuration) {
+            this.drawAttackerEffect(ctx, attackerX, attackerY, victimX, victimY);
+          }
+
+          if (timeDiff >= 0 && timeDiff <= victimEffectDuration) {
+            this.drawVictimEffect(ctx, victimX, victimY, timeDiff, victimEffectDuration);
+          }
+        }
+      }
+
+      drawAttackerEffect(ctx, attackerX, attackerY, victimX, victimY) {
+        ctx.globalAlpha = 0.7;
+        ctx.beginPath();
+        ctx.strokeStyle = 'white';
+        ctx.lineWidth = 1;
+
+        let dx = victimX - attackerX;
+        let dy = victimY - attackerY;
+        const dist = Math.sqrt(dx * dx + dy * dy);
+        if (dist > 0) {
+          dx /= dist;
+          dy /= dist;
+        }
+        const startX = attackerX + dx * 9;
+        const startY = attackerY + dy * 9;
+        const endX = victimX - dx * 9;
+        const endY = victimY - dy * 9;
+
+        ctx.moveTo(startX, startY);
+        ctx.lineTo(endX, endY);
+        ctx.closePath();
+        ctx.stroke();
+        ctx.globalAlpha = 1;
+
+        const muzzleUrl = this.getObserverImage('MuzzleFlash');
+        const muzzleImg = this.loadImage(muzzleUrl);
+        const muzzleSize = 52;
+
+        if (muzzleImg.complete && muzzleImg.naturalWidth > 0) {
+          ctx.save();
+          ctx.translate(attackerX, attackerY);
+          const angle = Math.atan2(victimY - attackerY, victimX - attackerX);
+          ctx.rotate(angle);
+          ctx.drawImage(muzzleImg, -muzzleSize / 2, -muzzleSize / 2, muzzleSize, muzzleSize);
+          ctx.restore();
+        }
+      }
+
+      drawVictimEffect(ctx, victimX, victimY, timeDiff, duration) {
+        const hitUrl = this.getObserverImage('PlayerHitEffect');
+        const hitImg = this.loadImage(hitUrl);
+
+        if (!hitImg.complete || hitImg.naturalWidth === 0) return;
+
+        const percent = (timeDiff / duration) * 100;
+        const baseSize = 55;
+        const sizeMultiplier = percent * 0.015;
+        const hitSize = baseSize * sizeMultiplier;
+        const alpha = percent < 50 ? percent / 100 : 1 - percent / 100;
+
+        ctx.globalAlpha = alpha;
+        ctx.drawImage(hitImg, victimX - hitSize, victimY - hitSize, hitSize * 2, hitSize * 2);
+        ctx.globalAlpha = 1;
+      }
+    }
+  </script>
+</body>
+</html>
