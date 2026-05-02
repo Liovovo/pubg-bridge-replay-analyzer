@@ -31,12 +31,12 @@ https://bridge.pubg.com/api/v1/web-replay/replays/{replay_match_id}
 
 ### 遥测数据
 
-`/data`：部分数据
+`/data`：部分数据  
 `/telemetry`：遥测相关备份存档
 
 ## 声明
 
-PUBG BRIDEG的回放数据与PUBGAPI的telemetry无关。
+PUBG BRIDEG的回放数据与PUBGAPI的telemetry无关。  
 本项目与 Krafton 及其关联公司无关，相关图片、图标和商标均属于其各自所有者。  
 本项目仅供学习和研究，不得用于非法用途。
 
