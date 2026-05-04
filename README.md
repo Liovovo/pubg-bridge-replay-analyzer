@@ -1,50 +1,50 @@
 # PUBG BRIDGE Replay Analyzer
 
-本仓库用于个人存储与存档PUBG地图、遥测及Bridge回放相关内容。
+This repository is for personal storage and archiving of PUBG maps, telemetry, and Bridge replay related content.
 
-![预览](demo/img.jpg)
+![Preview](demo/img.jpg)
 
 ## PUBG Bridge
 
-### 解析回放数据
+### Parse Replay Data
 
 ```bash
 python parse_replay.py replaydata.json
 ```
 
-### 可视化查看
+### Visualize
 
-打开 `visualizer.html`，把PUBG Bridge的原始或解析后的 JSON 拖进去即可。
+Open `visualizer.html` and drag the raw or parsed JSON from PUBG Bridge into it.
 
-### 数据来源
+### Data Source
 
 ```
 https://bridge.pubg.com/api/v1/web-replay/replays/{replay_match_id}
 ```
 
-支持的功能：
+Supported Features:
 
-- 事件可视化
-- 简易2D回放
+- Event visualization
+- Simple 2D replay
 
 ## PUBG API
 
-### 遥测数据
+### Telemetry
 
-`/data/Points`：点位数据  
-`/telemetry`：遥测相关备份存档
+`/data/Points`: Point data  
+`/telemetry`: Telemetry related backup archives
 
-## 地图
+## Maps
 
 ### HeightMap
 
-`/data/HeightMap`：遥测相关备份存档
+`/data/HeightMap`: HeightMap exports
 
-## 声明
+## Disclaimer
 
-PUBG BRIDEG的回放数据与PUBGAPI的telemetry无关。  
-本项目与 Krafton 及其关联公司无关，相关图片、图标和商标均属于其各自所有者。  
-本项目仅供学习和研究，不得用于非法用途。
+PUBG BRIDGE replay data is unrelated to PUBG API telemetry.  
+This project is not affiliated with Krafton or its associated companies. Related images, icons, and trademarks belong to their respective owners.  
+This project is for educational and research purposes only and must not be used for illegal purposes.
 
 ## License
 
