@@ -1,6 +1,6 @@
 # PUBG BRIDGE Replay Analyzer
 
-本仓库用于存储与存档PUBG遥测文件及Bridge回放分析相关内容。
+本仓库用于个人存储与存档PUBG地图、遥测及Bridge回放相关内容。
 
 ![预览](demo/img.jpg)
 
@@ -31,8 +31,14 @@ https://bridge.pubg.com/api/v1/web-replay/replays/{replay_match_id}
 
 ### 遥测数据
 
-`/data`：部分数据  
+`/data/Points`：点位数据  
 `/telemetry`：遥测相关备份存档
+
+## 地图
+
+### HeightMap
+
+`/data/HeightMap`：遥测相关备份存档
 
 ## 声明
 
