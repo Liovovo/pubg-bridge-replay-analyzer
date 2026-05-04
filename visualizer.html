@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="zh-CN">
+<html lang="en">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -235,10 +235,60 @@
     
     .hidden { display: none !important; }
 
+    #replay-tooltip {
+      position: absolute;
+      background: rgba(13, 17, 23, 0.95);
+      border: 1px solid #30363d;
+      border-radius: 4px;
+      padding: 8px 12px;
+      font-size: 12px;
+      color: #f0f6fc;
+      pointer-events: none;
+      z-index: 1000;
+      display: none;
+      max-width: 250px;
+    }
+    #replay-tooltip .tooltip-title {
+      font-weight: bold;
+      color: #58a6ff;
+      margin-bottom: 4px;
+      border-bottom: 1px solid #30363d;
+      padding-bottom: 4px;
+    }
+    #replay-tooltip .tooltip-row {
+      margin: 2px 0;
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+    }
+    #replay-tooltip .tooltip-label {
+      color: #8b949e;
+    }
+    #replay-tooltip .tooltip-value {
+      color: #f0f6fc;
+      text-align: right;
+    }
+    #replay-tooltip .tooltip-items {
+      margin-top: 4px;
+      padding-top: 4px;
+      border-top: 1px solid #30363d;
+      color: #c9d1d9;
+      font-size: 11px;
+      max-height: 100px;
+      overflow-y: auto;
+    }
+
     #replay-container {
       display: flex;
-      flex-direction: column;
+      flex-direction: row;
       height: 100%;
+      gap: 8px;
+    }
+    #replay-main {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      min-width: 0;
     }
     #replay-canvas-container {
       flex: 1;
@@ -249,6 +299,97 @@
       max-height: calc(100% - 100px);
       margin: 0 auto;
       width: auto;
+    }
+    #replay-events-panel {
+      width: 320px;
+      background: #161b22;
+      border-left: 1px solid #30363d;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+    #replay-events-header {
+      padding: 12px 16px;
+      border-bottom: 1px solid #30363d;
+      font-size: 14px;
+      font-weight: 600;
+      color: #f0f6fc;
+      background: #21262d;
+    }
+    #replay-events-list {
+      flex: 1;
+      overflow-y: auto;
+      padding: 8px;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+    .replay-event-item {
+      display: flex;
+      align-items: center;
+      padding: 8px 10px;
+      background: #0d1117;
+      border-radius: 4px;
+      font-size: 12px;
+      gap: 8px;
+    }
+    .replay-event-item.kill .victim-name {
+      color: #ff3e3e;
+    }
+    .replay-event-item.dbno .victim-name {
+      color: #ffa500;
+    }
+    .replay-event-time {
+      color: #8b949e;
+      font-size: 11px;
+      min-width: 45px;
+      font-family: 'Consolas', monospace;
+    }
+    .replay-event-content {
+      flex: 1;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      overflow: hidden;
+    }
+    .replay-event-player {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      overflow: hidden;
+    }
+    .replay-event-team {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      min-width: 20px;
+      height: 16px;
+      font-size: 10px;
+      font-weight: 600;
+      color: #fff;
+      text-shadow: 1px 0 1px rgba(0,0,0,.5), 0 1px 1px rgba(0,0,0,.5), -1px 0 1px rgba(0,0,0,.5), 0 -1px 1px rgba(0,0,0,.5);
+      border-radius: 2px;
+    }
+    .replay-event-name {
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      color: #f0f6fc;
+    }
+    .replay-event-weapon {
+      width: 24px;
+      height: 16px;
+      object-fit: contain;
+      transform: scaleX(-1);
+    }
+    .replay-event-icon {
+      width: 16px;
+      height: 16px;
+      object-fit: contain;
+    }
+    .replay-event-arrow {
+      color: #8b949e;
+      font-size: 10px;
     }
     #replay-map-container {
       position: absolute;
@@ -363,64 +504,82 @@
   </style>
 </head>
 <body>
-  <!-- 拖拽区域 -->
+  <!-- Drop Zone -->
   <div id="drop-zone">
-    <h1>PUBG BRIDGE Replay Data Visualizer</h1>
-    <p>Github: <a href="https://github.com/Liovovo/pubg-bridge-replay-analyzer" target="_blank" style="color: inherit; text-decoration: none;">Liovovo/pubg-bridge-replay-analyzer</a></p>
-    <p>拖拽 replaydata_parsed.json 到此处</p>
+    <h1>PUBG BRIDGE Replay Data Visualizer (v2)</h1>
+    <p>Github: <a href="https://github.com/Liovovo/pubg-replay-data" target="_blank" style="color: inherit; text-decoration: none;">Liovovo/pubg-replay-data</a></p>
+    <p>Drag and drop replaydata_parsed.json here</p>
+    <div style="margin-top: 24px; display: flex; flex-direction: column; gap: 12px; align-items: center;">
+      <button class="btn btn-primary" onclick="document.getElementById('file-input').click()" style="padding: 10px 24px; font-size: 14px;">Select File</button>
+      <input type="file" id="file-input" accept=".json" style="display: none;">
+      <span style="color: #8b949e; font-size: 12px;">or</span>
+      <button class="btn" onclick="showTextInput()" style="padding: 10px 24px; font-size: 14px;">Paste JSON</button>
+    </div>
   </div>
 
-  <!-- 主容器 -->
-  <div id="main-container">
-    <!-- 侧边栏 -->
+  <!-- Text Input Modal -->
+  <div id="text-input-modal" style="display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(13, 17, 23, 0.95); z-index: 2000; flex-direction: column; padding: 40px;">
+    <div style="max-width: 800px; margin: 0 auto; width: 100%;">
+      <h2 style="margin-bottom: 16px; color: #f0f6fc;">Paste JSON Content</h2>
+      <textarea id="json-text-input" placeholder="Paste your JSON content here..." style="width: 100%; height: 400px; background: #0d1117; border: 1px solid #30363d; color: #c9d1d9; padding: 16px; font-family: 'SF Mono', Monaco, monospace; font-size: 12px; border-radius: 6px; resize: vertical;"></textarea>
+      <div style="margin-top: 16px; display: flex; gap: 12px; justify-content: flex-end;">
+        <button class="btn" onclick="hideTextInput()">Cancel</button>
+        <button class="btn btn-primary" onclick="processTextInput()">Load</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Main Container -->
+    <div id="main-container">
+    <!-- Sidebar -->
     <div id="sidebar">
       <h2>PUBG BRIDGE Replay Data Visualizer</h2>
       <div class="nav-item active" data-view="overview">
-        <span>总览</span>
+        <span>Overview</span>
         <span class="badge badge-blue">13</span>
       </div>
       <div class="nav-item" data-view="metadata">
-        <span>元数据</span>
+        <span>Metadata</span>
         <span class="badge badge-gray">m, t, o</span>
       </div>
       <div class="nav-item" data-view="items">
-        <span>物品定义</span>
+        <span>Item Definitions</span>
         <span class="count" id="item-count">0</span>
       </div>
       <div class="nav-item" data-view="players">
-        <span>玩家数据</span>
+        <span>Player Data</span>
         <span class="count" id="player-count">0</span>
       </div>
       <div class="nav-item" data-view="zones">
-        <span>安全区/毒圈</span>
+        <span>Safe Zone/Blue Zone</span>
         <span class="badge badge-green">z</span>
       </div>
       <div class="nav-item" data-view="special-zones">
-        <span>特殊区域</span>
+        <span>Special Zones</span>
         <span class="badge badge-gray">s</span>
       </div>
       <div class="nav-item" data-view="combats">
-        <span>战斗数据</span>
+        <span>Combat Data</span>
         <span class="badge badge-red">c</span>
       </div>
       <div class="nav-item" data-view="carepackages">
-        <span>空投补给</span>
+        <span>Care Packages</span>
         <span class="count" id="carepackage-count">0</span>
       </div>
       <div class="nav-item" data-view="bluechip">
-        <span>蓝色晶片</span>
+        <span>Blue Chip</span>
         <span class="badge badge-gray">b</span>
       </div>
       <div class="nav-item" data-view="redeploy">
-        <span>重新部署</span>
+        <span>Redeploy</span>
         <span class="badge badge-gray">r</span>
       </div>
       <div class="nav-item" data-view="kills">
-        <span>击杀记录</span>
+        <span>Kill Records</span>
         <span class="count" id="kill-count">0</span>
       </div>
       <div class="nav-item" data-view="replay">
-        <span>2D回放</span>
+        <span>2D Replay</span>
         <span class="badge badge-green">R</span>
       </div>
       <div class="nav-item" data-view="raw">
@@ -428,11 +587,11 @@
       </div>
     </div>
 
-    <!-- 内容区 -->
+    <!-- Content Area -->
     <div style="flex: 1; display: flex; flex-direction: column;">
       <div class="toolbar">
-        <button class="btn" onclick="loadNewFile()">加载新文件</button>
-        <button class="btn" onclick="exportData()">导出数据</button>
+        <button class="btn" onclick="loadNewFile()">Load New File</button>
+        <button class="btn" onclick="exportData()">Export Data</button>
         <span id="file-info" style="margin-left: auto; color: #8b949e; font-size: 12px;"></span>
       </div>
       <div id="content"></div>
@@ -465,10 +624,52 @@
 
     dropZone.addEventListener('drop', handleDrop, false);
 
+    // Click to upload file
+    document.getElementById('file-input').addEventListener('change', handleFileSelect, false);
+
     function handleDrop(e) {
       const files = e.dataTransfer.files;
       if (files.length > 0) {
         loadFile(files[0]);
+      }
+    }
+
+    function handleFileSelect(e) {
+      const files = e.target.files;
+      if (files.length > 0) {
+        loadFile(files[0]);
+      }
+    }
+
+    function showTextInput() {
+      document.getElementById('text-input-modal').style.display = 'flex';
+      document.getElementById('json-text-input').focus();
+    }
+
+    function hideTextInput() {
+      document.getElementById('text-input-modal').style.display = 'none';
+      document.getElementById('json-text-input').value = '';
+    }
+
+    function processTextInput() {
+      const content = document.getElementById('json-text-input').value.trim();
+      if (!content) {
+        alert('Please enter JSON content');
+        return;
+      }
+
+      try {
+        const parsed = detectAndParse(content);
+        if (parsed) {
+          replayData = parsed;
+          document.getElementById('file-info').textContent = 'Pasted JSON';
+          hideTextInput();
+          initVisualizer();
+        } else {
+          alert('Unable to parse JSON content');
+        }
+      } catch (err) {
+        alert('Parse failed: ' + err.message);
       }
     }
 
@@ -483,25 +684,25 @@
             document.getElementById('file-info').textContent = `${file.name} (${(file.size/1024).toFixed(1)} KB)`;
             initVisualizer();
           } else {
-            alert('无法解析文件内容');
+            alert('Unable to parse file content');
           }
         } catch (err) {
-          alert('解析失败: ' + err.message);
+          alert('Parse failed: ' + err.message);
         }
       };
       reader.readAsText(file);
     }
 
     function detectAndParse(content) {
-      // 作为普通JSON解析
+      // Parse as regular JSON
       let parsedJson = null;
       try {
         parsedJson = JSON.parse(content);
       } catch (e) {
-        // 如果不是则继续
+        // If not, continue
       }
 
-      // 成功检查是否是 {replayData: 结构
+      // Check if it's {replayData: structure
       if (parsedJson && parsedJson.replayData && typeof parsedJson.replayData === 'string') {
         const base64Data = parsedJson.replayData.trim();
         try {
@@ -511,17 +712,17 @@
             return decompressed;
           }
         } catch (e) {
-          console.error('解析replayData失败:', e);
+          console.error('Failed to parse replayData:', e);
         }
         return null;
       }
 
-      // 如果是普通JSON对象，直接返回
+      // If it's a regular JSON object, return directly
       if (parsedJson) {
         return parsedJson;
       }
 
-      // 是否为纯Base64编码
+      // Check if it's pure Base64 encoded
       const trimmed = content.trim();
       const base64Pattern = /^[A-Za-z0-9+/=\s]+$/;
       if (base64Pattern.test(trimmed) && trimmed.length > 100) {
@@ -542,7 +743,7 @@
       return null;
     }
 
-    // 解压gzip
+    // Decompress gzip
     function decompressGzip(data) {
       try {
         const uint8Array = new Uint8Array(data.length);
@@ -552,7 +753,7 @@
         const decompressed = pako.inflate(uint8Array, { to: 'string' });
         return JSON.parse(decompressed);
       } catch (e) {
-        console.error('解压失败:', e);
+        console.error('Decompression failed:', e);
         return null;
       }
     }
@@ -585,7 +786,7 @@
       a.click();
     }
 
-    // 导出文件名
+    // Export file name
     function generateExportFileName() {
       const m = replayData.m || {};
       const t = replayData.t || {};
@@ -608,7 +809,7 @@
       return parts.join('_') + '.json';
     }
 
-    // 导航切换
+    // Navigation switch
     document.querySelectorAll('.nav-item').forEach(item => {
       item.addEventListener('click', () => {
         document.querySelectorAll('.nav-item').forEach(i => i.classList.remove('active'));
@@ -617,7 +818,7 @@
       });
     });
 
-    // 渲染视图
+    // Render view
     function renderView(view) {
       currentView = view;
       const content = document.getElementById('content');
@@ -639,48 +840,48 @@
       }
     }
 
-    // ========== 各视图渲染函数 ==========
+    // ========== View Rendering Functions ==========
 
     function renderOverview(container) {
       const stats = [
-        { label: '物品定义数量', value: replayData.x?.length || 0 },
-        { label: '玩家数量', value: replayData.p?.length || 0 },
-        { label: '击杀记录数', value: replayData.f?.length || 0 },
-        { label: '空投补给数', value: replayData.k?.length || 0 },
-        { label: '毒圈阶段数', value: replayData.z?.b?.length || 0 },
-        { label: '安全区阶段数', value: replayData.z?.s?.length || 0 },
-        { label: '红区事件数', value: replayData.s?.r?.length || 0 },
-        { label: '黑区事件数', value: replayData.s?.b?.length || 0 },
-        { label: '战斗记录数', value: replayData.c?.a?.t?.length || 0 },
-        { label: '地图宽度', value: replayData.t?.w || 0 },
-        { label: '地图高度', value: replayData.t?.h || 0 },
-        { label: '比赛时长', value: replayData.m?.l || 0 },
+        { label: 'Item Definitions', value: replayData.x?.length || 0 },
+        { label: 'Players', value: replayData.p?.length || 0 },
+        { label: 'Kill Records', value: replayData.f?.length || 0 },
+        { label: 'Care Packages', value: replayData.k?.length || 0 },
+        { label: 'Blue Zone Phases', value: replayData.z?.b?.length || 0 },
+        { label: 'Safe Zone Phases', value: replayData.z?.s?.length || 0 },
+        { label: 'Red Zone Events', value: replayData.s?.r?.length || 0 },
+        { label: 'Black Zone Events', value: replayData.s?.b?.length || 0 },
+        { label: 'Combat Records', value: replayData.c?.a?.t?.length || 0 },
+        { label: 'Map Width', value: replayData.t?.w || 0 },
+        { label: 'Map Height', value: replayData.t?.h || 0 },
+        { label: 'Match Duration', value: replayData.m?.l || 0 },
       ];
 
-      let html = '<div class="panel"><div class="panel-header"><span class="panel-title">数据概览</span></div><div class="panel-body">';
+      let html = '<div class="panel"><div class="panel-header"><span class="panel-title">Data Overview</span></div><div class="panel-body">';
       html += '<div class="stats-grid">';
       stats.forEach(stat => {
         html += `<div class="stat-card"><div class="stat-value">${stat.value.toLocaleString()}</div><div class="stat-label">${stat.label}</div></div>`;
       });
       html += '</div></div></div>';
 
-      // 顶层键
-      html += '<div class="panel"><div class="panel-header"><span class="panel-title">顶层数据结构</span></div><div class="panel-body">';
-      html += '<table><tr><th>键</th><th>类型</th><th>描述</th></tr>';
+      // Top-level keys
+      html += '<div class="panel"><div class="panel-header"><span class="panel-title">Top-level Data Structure</span></div><div class="panel-body">';
+      html += '<table><tr><th>Key</th><th>Type</th><th>Description</th></tr>';
       const keyDesc = {
-        x: '物品定义表 (武器/载具/装备)',
-        i: '物品索引映射',
-        o: '版本信息',
-        m: '比赛元数据',
-        t: '地图信息',
-        p: '玩家数组',
-        c: '战斗/伤害数据',
-        z: '安全区/毒圈数据',
-        s: '特殊区域 (红区/黑区)',
-        k: '空投补给箱',
-        b: '蓝色晶片/蓝色晶片基站',
-        r: '重新部署数据',
-        f: '击杀记录'
+        x: 'Item Definition Table (Weapons/Vehicles/Gear)',
+        i: 'Item Index Mapping',
+        o: 'Version Info',
+        m: 'Match Metadata',
+        t: 'Map Info',
+        p: 'Player Array',
+        c: 'Combat/Damage Data',
+        z: 'Safe Zone/Blue Zone Data',
+        s: 'Special Zones (Red Zone/Black Zone)',
+        k: 'Care Packages',
+        b: 'Blue Chip/Blue Chip Tower',
+        r: 'Redeploy Data',
+        f: 'Kill Records'
       };
       Object.keys(replayData).forEach(key => {
         const type = Array.isArray(replayData[key]) ? `Array(${replayData[key].length})` : 'Object';
@@ -691,21 +892,66 @@
       container.innerHTML = html;
     }
 
+    /**
+     * Metadata Structure :
+     *
+     * replayData contains three metadata-related top-level fields:
+     *
+     * m (match): Match metadata
+     *   - n: MapName (string) - map identifier (e.g., "Erangel", "Miramar")
+     *   - w: Weather (string) - weather condition
+     *   - l: MatchLength (number) - match duration in seconds
+     *
+     * t (telemetry): Telemetry metadata
+     *   - m: MapName (string) - fallback/alternative map name source
+     *
+     * o (version): Version information
+     *   Contains replay format version and game version info
+     *
+     * Note: Map name can come from either m.n or t.m (fallback)
+     */
     function renderMetadata(container) {
       let html = '';
-      
-      // 元数据
-      html += '<div class="panel"><div class="panel-header"><span class="panel-title">比赛元数据 (m)</span></div><div class="panel-body">';
+      const m = replayData.m || {};
+      const t = replayData.t || {};
+      const o = replayData.o || {};
+
+      // Match Summary Panel
+      html += '<div class="panel"><div class="panel-header"><span class="panel-title">Match Summary</span></div><div class="panel-body">';
+      html += '<table style="margin-bottom: 16px;">';
+      html += '<tr><th>Field</th><th>Raw Value</th><th>Description</th></tr>';
+
+      // Map Name - from m.n or fallback to t.m
+      const mapName = m.n || t.m || 'Unknown';
+      html += `<tr><td><code>m.n</code> / <code>t.m</code></td><td><code>${mapName}</code></td><td>Map Name</td></tr>`;
+
+      // Weather
+      const weather = m.w || 'Unknown';
+      html += `<tr><td><code>m.w</code></td><td><code>${weather}</code></td><td>Weather Condition</td></tr>`;
+
+      // Match Length
+      const matchLength = m.l || 0;
+      const matchLengthFormatted = matchLength > 0 ? `${Math.floor(matchLength / 60)}m ${matchLength % 60}s` : 'Unknown';
+      html += `<tr><td><code>m.l</code></td><td><code>${matchLength}</code></td><td>Match Length (${matchLengthFormatted})</td></tr>`;
+
+      html += '</table>';
+      html += '</div></div>';
+
+      // Match Metadata (m) - Raw JSON
+      html += '<div class="panel"><div class="panel-header"><span class="panel-title">Match Metadata (m) - Raw</span></div><div class="panel-body">';
+      html += '<p style="color: #8b949e; font-size: 11px; margin-bottom: 12px;">Raw JSON:</p>';
       html += renderJsonTree(replayData.m);
       html += '</div></div>';
 
-      // 地图信息
-      html += '<div class="panel"><div class="panel-header"><span class="panel-title">地图信息 (t)</span></div><div class="panel-body">';
+      // Telemetry Metadata (t) - Raw JSON
+      html += '<div class="panel"><div class="panel-header"><span class="panel-title">Telemetry Metadata (t) - Raw</span></div><div class="panel-body">';
+      html += '<p style="color: #8b949e; font-size: 11px; margin-bottom: 12px;">Raw JSON:</p>';
       html += renderJsonTree(replayData.t);
       html += '</div></div>';
 
-      // 版本信息
-      html += '<div class="panel"><div class="panel-header"><span class="panel-title">版本信息 (o)</span></div><div class="panel-body">';
+      // Version Info (o) - Raw JSON
+      html += '<div class="panel"><div class="panel-header"><span class="panel-title">Version Info (o) - Raw</span></div><div class="panel-body">';
+      html += '<p style="color: #8b949e; font-size: 11px; margin-bottom: 12px;">Raw JSON:</p>';
       html += renderJsonTree(replayData.o);
       html += '</div></div>';
 
@@ -714,17 +960,17 @@
     }
 
     function renderItems(container) {
-      let html = '<div class="panel"><div class="panel-header"><span class="panel-title">物品定义表 (x)</span></div><div class="panel-body">';
-      html += '<table><tr><th>索引</th><th>物品ID</th><th>类别</th></tr>';
+      let html = '<div class="panel"><div class="panel-header"><span class="panel-title">Item Definition Table (x)</span></div><div class="panel-body">';
+      html += '<table><tr><th>Index</th><th>Item ID</th><th>Category</th></tr>';
       replayData.x?.forEach((item, idx) => {
         const category = item.includes('.') ? item.split('.')[0] : 'other';
         html += `<tr><td>${idx}</td><td><code>${item}</code></td><td><span class="badge badge-gray">${category}</span></td></tr>`;
       });
       html += '</table></div></div>';
 
-      // 索引映射
-      html += '<div class="panel"><div class="panel-header"><span class="panel-title">物品索引映射 (i)</span></div><div class="panel-body">';
-      html += '<table><tr><th>物品ID</th><th>索引</th></tr>';
+      // Index Mapping
+      html += '<div class="panel"><div class="panel-header"><span class="panel-title">Item Index Mapping (i)</span></div><div class="panel-body">';
+      html += '<table><tr><th>Item ID</th><th>Index</th></tr>';
       Object.entries(replayData.i || {}).forEach(([key, val]) => {
         html += `<tr><td><code>${key}</code></td><td>${val}</td></tr>`;
       });
@@ -733,83 +979,298 @@
       container.innerHTML = html;
     }
 
+    /**
+     * Player Data Structure (from replayData.p array):
+     * 
+     * Each player object contains the following fields:
+     * 
+     * i (info): Basic player information
+     *   - a: AccountId (string) - unique player identifier
+     *   - n: Nickname (string) - player display name
+     *   - t: TeamId (number) - team identifier for grouping
+     *   - o: Origin (string|null) - platform (e.g., "steam", "xbox", "psn")
+     *   - c: ClanTag (string|null) - clan tag if player is in a clan
+     * 
+     * p (position): Position tracking data
+     *   - t: Time array (number[]) - timestamps in seconds
+     *   - x: X coordinates (number[]) - map X positions
+     *   - y: Y coordinates (number[]) - map Y positions
+     *   All three arrays have the same length and are indexed together.
+     * 
+     * h (health): Health tracking data
+     *   - t: Time array (number[]) - timestamps in seconds
+     *   - h: Health values (number[]) - health points (0-100)
+     *   Both arrays have the same length and are indexed together.
+     * 
+     * l (life): Life state events
+     *   - t: Time array (number[]) - event timestamps
+     *   - e: Event types (number[]) - 0=Alive, 1=DBNO, 2=Died, 3=Revived, 4=Redeployed
+     * 
+     * v (vehicle): Vehicle interaction events
+     *   - t: Time array (number[]) - event timestamps
+     *   - e: Event types (number[]) - 0=Ride, 1=Leave
+     * 
+     * w (weapon): Weapon switching events
+     *   - t: Time array (number[]) - event timestamps
+     *   - w: Weapon indices (number[]) - references replayData.x array for weapon names
+     * 
+     * k (kills): Kill and assist tracking
+     *   - t: Time array (number[]) - timestamps
+     *   - k: Kill counts (number[]) - cumulative kills at each time point
+     *   - a: Assist counts (number[]) - cumulative assists at each time point
+     */
     function renderPlayers(container) {
-      let html = '<input type="text" class="search-box" placeholder="搜索玩家昵称..." onkeyup="filterPlayers(this.value)">';
-      html += '<div id="players-list">';
+      let html = '<input type="text" class="search-box" placeholder="Search player nickname..." onkeyup="filterPlayers(this.value)">';
       
+      // Group players by team for organized display
+      const playersByTeam = {};
       replayData.p?.forEach((player, idx) => {
-        const info = player.i;
-        const posCount = player.p?.t?.length || 0;
-        const healthCount = player.h?.t?.length || 0;
-        const killCount = player.k?.k?.[player.k.k.length - 1] || 0;
-        
-        html += `<div class="player-card" data-name="${info.n.toLowerCase()}" onclick="showPlayerDetail(${idx})">`;
-        html += `<div class="player-name">${info.n} <span class="badge badge-blue">Team ${info.t}</span></div>`;
-        html += `<div class="player-meta">`;
-        html += `ID: ${info.a.substring(0, 20)}... | `;
-        html += `位置点: ${posCount} | `;
-        html += `血量记录: ${healthCount} | `;
-        html += `击杀: ${killCount}`;
-        if (info.c) html += ` | 战队: ${info.c}`;
-        html += `</div></div>`;
+        const teamId = player.i?.t || 0;
+        if (!playersByTeam[teamId]) {
+          playersByTeam[teamId] = [];
+        }
+        playersByTeam[teamId].push({ player, idx });
       });
       
-      html += '</div>';
+      // Sort teams by team ID
+      const sortedTeams = Object.keys(playersByTeam).sort((a, b) => parseInt(a) - parseInt(b));
+      
+      sortedTeams.forEach(teamId => {
+        const teamColor = getTeamColor(parseInt(teamId));
+        const teamPlayers = playersByTeam[teamId];
+        
+        html += `<div class="panel" style="margin-bottom: 16px;">`;
+        html += `<div class="panel-header" style="background: ${teamColor}30; border-color: ${teamColor};">`;
+        html += `<span class="panel-title" style="color: #f0f6fc;">Team ${teamId} (${teamPlayers.length} players)</span>`;
+        html += `</div><div class="panel-body" style="padding: 8px;">`;
+        
+        teamPlayers.forEach(({ player, idx }) => {
+          const info = player.i;
+          const posCount = player.p?.t?.length || 0;
+          const healthCount = player.h?.t?.length || 0;
+          const killCount = player.k?.k?.[player.k?.k?.length - 1] || 0;
+          const finalKills = player.k?.k?.length > 0 ? player.k.k[player.k.k.length - 1] : 0;
+          const finalAssists = player.k?.a?.length > 0 ? player.k.a[player.k.a.length - 1] : 0;
+          
+          html += `<div class="player-card" data-name="${info.n.toLowerCase()}" data-team="${teamId}" onclick="showPlayerDetail(${idx})">`;
+          html += `<div class="player-name" style="color: #f0f6fc;">${info.n}</div>`;
+          html += `<div class="player-meta">`;
+          html += `Index: ${idx} | `;
+          html += `AccountId: ${info.a} | `;
+          html += `Origin: ${info.o || 'N/A'} | `;
+          html += `Position Points: ${posCount} | `;
+          html += `Health Records: ${healthCount} | `;
+          html += `Kills: ${finalKills} | `;
+          html += `Assists: ${finalAssists}`;
+          if (info.c) html += ` | Clan: ${info.c}`;
+          html += `</div></div>`;
+        });
+        
+        html += '</div></div>';
+      });
+      
       container.innerHTML = html;
+    }
+
+    /**
+     * Returns a consistent color for a given team ID.
+     * Used across the application for team identification in:
+     * - Player list grouping
+     * - Player detail headers
+     * - Replay visualization
+     * 
+     * Colors are assigned sequentially. Team 1 gets colors[0], Team 2 gets colors[1], etc.
+     * If teamId exceeds color count, wraps around using modulo.
+     */
+    function getTeamColor(teamId) {
+      const colors = [
+        '#1D3C82', '#00928B', '#B7300B', '#04628D', '#4B227D',
+        '#8E3524', '#425B0E', '#B12E5C', '#8D6430', '#720F43',
+        '#BEA22C', '#56A6A3', '#687880', '#D68F1D', '#3A464C',
+        '#D17393', '#0D6560', '#7A4713', '#6E9125', '#815597',
+        '#489775', '#7892B5', '#D59174', '#332F64', '#877F1A'
+      ];
+      return colors[(teamId - 1) % colors.length] || '#888888';
     }
 
     function filterPlayers(query) {
       const cards = document.querySelectorAll('.player-card');
       cards.forEach(card => {
         const name = card.dataset.name;
-        card.style.display = name.includes(query.toLowerCase()) ? 'block' : 'none';
+        const team = card.dataset.team;
+        const match = name.includes(query.toLowerCase()) || team.includes(query);
+        card.style.display = match ? 'block' : 'none';
       });
     }
 
+    /**
+     * Displays detailed player information in a structured format.
+     * 
+     * Each data section follows this pattern:
+     * 1. Field description table - explains what each field represents
+     * 2. Sample data display - shows first N records for quick inspection
+     * 3. Value mapping - converts raw numeric values to human-readable text
+     * 4. Raw JSON - complete data for debugging
+     * 
+     * Event Type Mappings (verified from source):
+     * - Life Events (l.e): 0=Alive, 1=DBNO, 2=Died, 3=Revived, 4=Redeployed
+     * - Vehicle Events (v.e): 0=Ride, 1=Leave
+     * - Weapon indices (w.w): reference replayData.x array for weapon names
+     */
     function showPlayerDetail(idx) {
       const player = replayData.p[idx];
       const content = document.getElementById('content');
+      const teamColor = getTeamColor(player.i?.t || 0);
       
-      let html = `<div class="panel"><div class="panel-header"><span class="panel-title">玩家详情: ${player.i.n}</span></div><div class="panel-body">`;
+      // Calculate summary statistics for the header
+      const finalKills = player.k?.k?.length > 0 ? player.k.k[player.k.k.length - 1] : 0;
+      const finalAssists = player.k?.a?.length > 0 ? player.k.a[player.k.a.length - 1] : 0;
+      const posCount = player.p?.t?.length || 0;
+      const healthCount = player.h?.t?.length || 0;
+      const lifeEventCount = player.l?.t?.length || 0;
+      const vehicleEventCount = player.v?.t?.length || 0;
+      const weaponSwitchCount = player.w?.t?.length || 0;
       
-      // 基本信息
-      html += '<h3 style="margin: 16px 0 8px; color: #f0f6fc;">基本信息</h3>';
-      html += renderJsonTree(player.i);
+      let html = '';
       
-      // 位置数据
-      html += '<h3 style="margin: 16px 0 8px; color: #f0f6fc;">位置数据 (p)</h3>';
-      html += `<p style="color: #8b949e; font-size: 12px; margin-bottom: 8px;">时间点数: ${player.p?.t?.length || 0}</p>`;
-      html += renderJsonTree({
-        t: `Array(${player.p?.t?.length || 0}) [${player.p?.t?.slice(0, 5).join(', ')}...]`,
-        x: `Array(${player.p?.x?.length || 0})`,
-        y: `Array(${player.p?.y?.length || 0})`
-      });
+      // Back button at top
+      html += '<div style="margin-bottom: 16px;">';
+      html += '<button class="btn" onclick="renderView(\'players\')">Back to List</button>';
+      html += '</div>';
       
-      // 血量数据
-      html += '<h3 style="margin: 16px 0 8px; color: #f0f6fc;">血量数据 (h)</h3>';
-      html += renderJsonTree({
-        t: `Array(${player.h?.t?.length || 0})`,
-        h: `Array(${player.h?.h?.length || 0}) [${player.h?.h?.slice(0, 5).join(', ')}...]`
-      });
+      // Player Header Panel
+      html += `<div class="panel"><div class="panel-header" style="background: ${teamColor}20;">`;
+      html += `<span class="panel-title" style="color: ${teamColor};">Player: ${player.i.n} (Team ${player.i.t})</span>`;
+      html += '</div><div class="panel-body">';
       
-      // 生死事件
-      html += '<h3 style="margin: 16px 0 8px; color: #f0f6fc;">生死事件 (l)</h3>';
-      html += renderJsonTree(player.l);
+      // Quick Stats Grid
+      html += '<div class="stats-grid" style="margin-bottom: 16px;">';
+      html += `<div class="stat-card"><div class="stat-value">${idx}</div><div class="stat-label">Player Index</div></div>`;
+      html += `<div class="stat-card"><div class="stat-value">${finalKills}</div><div class="stat-label">Kills</div></div>`;
+      html += `<div class="stat-card"><div class="stat-value">${finalAssists}</div><div class="stat-label">Assists</div></div>`;
+      html += `<div class="stat-card"><div class="stat-value">${posCount}</div><div class="stat-label">Position Points</div></div>`;
+      html += `<div class="stat-card"><div class="stat-value">${healthCount}</div><div class="stat-label">Health Records</div></div>`;
+      html += `<div class="stat-card"><div class="stat-value">${lifeEventCount}</div><div class="stat-label">Life Events</div></div>`;
+      html += '</div>';
       
-      // 载具事件
-      html += '<h3 style="margin: 16px 0 8px; color: #f0f6fc;">载具事件 (v)</h3>';
-      html += renderJsonTree(player.v);
-      
-      // 武器
-      html += '<h3 style="margin: 16px 0 8px; color: #f0f6fc;">武器切换 (w)</h3>';
-      html += renderJsonTree(player.w);
-      
-      // 击杀助攻
-      html += '<h3 style="margin: 16px 0 8px; color: #f0f6fc;">击杀助攻 (k)</h3>';
-      html += renderJsonTree(player.k);
+      // Basic Info (i) - Raw and mapped
+      html += '<h3 style="margin: 16px 0 8px; color: #f0f6fc; border-bottom: 1px solid #30363d; padding-bottom: 8px;">Basic Info (i)</h3>';
+      html += '<table style="margin-bottom: 16px;">';
+      html += '<tr><th>Field</th><th>Raw Value</th><th>Description</th></tr>';
+      html += `<tr><td><code>i.a</code></td><td><code>${player.i.a}</code></td><td>AccountId</td></tr>`;
+      html += `<tr><td><code>i.n</code></td><td><code>${player.i.n}</code></td><td>Nickname</td></tr>`;
+      html += `<tr><td><code>i.t</code></td><td><code>${player.i.t}</code></td><td>TeamId</td></tr>`;
+      html += `<tr><td><code>i.o</code></td><td><code>${player.i.o || 'null'}</code></td><td>Origin (Platform)</td></tr>`;
+      html += `<tr><td><code>i.c</code></td><td><code>${player.i.c || 'null'}</code></td><td>ClanTag</td></tr>`;
+      html += '</table>';
+      html += '<p style="color: #8b949e; font-size: 11px; margin-bottom: 16px;">Raw JSON (click to expand):</p>';
+      html += renderJsonTree(player.i, null, true);
       
       html += '</div></div>';
-      html += '<button class="btn" onclick="renderView(\'players\')" style="margin-top: 16px;">返回列表</button>';
+      
+      // Position Data (p)
+      html += '<div class="panel"><div class="panel-header"><span class="panel-title">Position Data (p)</span></div><div class="panel-body">';
+      html += '<table style="margin-bottom: 12px;">';
+      html += '<tr><th>Field</th><th>Length</th><th>Description</th></tr>';
+      html += `<tr><td><code>p.t</code></td><td>${player.p?.t?.length || 0}</td><td>Time array (seconds)</td></tr>`;
+      html += `<tr><td><code>p.x</code></td><td>${player.p?.x?.length || 0}</td><td>X coordinates</td></tr>`;
+      html += `<tr><td><code>p.y</code></td><td>${player.p?.y?.length || 0}</td><td>Y coordinates</td></tr>`;
+      html += '</table>';
+      html += '<p style="color: #8b949e; font-size: 11px; margin-bottom: 8px;">Raw JSON (click to expand):</p>';
+      html += renderJsonTree(player.p, null, true);
+      html += '</div></div>';
+      
+      // Health Data (h)
+      html += '<div class="panel"><div class="panel-header"><span class="panel-title">Health Data (h)</span></div><div class="panel-body">';
+      html += '<table style="margin-bottom: 12px;">';
+      html += '<tr><th>Field</th><th>Length</th><th>Description</th></tr>';
+      html += `<tr><td><code>h.t</code></td><td>${player.h?.t?.length || 0}</td><td>Time array (seconds)</td></tr>`;
+      html += `<tr><td><code>h.h</code></td><td>${player.h?.h?.length || 0}</td><td>Health values (0-100)</td></tr>`;
+      html += '</table>';
+      html += '<p style="color: #8b949e; font-size: 11px; margin-bottom: 8px;">Raw JSON (click to expand):</p>';
+      html += renderJsonTree(player.h, null, true);
+      html += '</div></div>';
+      
+      // Life Events (l)
+      html += '<div class="panel"><div class="panel-header"><span class="panel-title">Life Events (l)</span></div><div class="panel-body">';
+      html += '<table style="margin-bottom: 12px;">';
+      html += '<tr><th>Field</th><th>Length</th><th>Description</th></tr>';
+      html += `<tr><td><code>l.t</code></td><td>${player.l?.t?.length || 0}</td><td>Time array (seconds)</td></tr>`;
+      html += `<tr><td><code>l.e</code></td><td>${player.l?.e?.length || 0}</td><td>Event types</td></tr>`;
+      html += '</table>';
+      html += '<p style="color: #8b949e; font-size: 11px; margin-bottom: 8px;">Event Type Mapping: 0=Alive, 1=DBNO (Down But Not Out), 2=Died, 3=Revived, 4=Redeployed</p>';
+      if (player.l?.t?.length > 0) {
+        html += '<table style="margin-bottom: 12px;"><tr><th>Time</th><th>Event Type (Raw)</th><th>Event (Mapped)</th></tr>';
+        const eventMap = { 0: 'Alive', 1: 'DBNO', 2: 'Died', 3: 'Revived', 4: 'Redeployed' };
+        for (let i = 0; i < player.l.t.length; i++) {
+          const evt = player.l.e[i];
+          html += `<tr><td>${player.l.t[i]}</td><td>${evt}</td><td>${eventMap[evt] || 'Unknown'}</td></tr>`;
+        }
+        html += '</table>';
+      }
+      html += '<p style="color: #8b949e; font-size: 11px; margin-bottom: 8px;">Raw JSON (click to expand):</p>';
+      html += renderJsonTree(player.l, null, true);
+      html += '</div></div>';
+      
+      // Vehicle Events (v)
+      html += '<div class="panel"><div class="panel-header"><span class="panel-title">Vehicle Events (v)</span></div><div class="panel-body">';
+      html += '<table style="margin-bottom: 12px;">';
+      html += '<tr><th>Field</th><th>Length</th><th>Description</th></tr>';
+      html += `<tr><td><code>v.t</code></td><td>${player.v?.t?.length || 0}</td><td>Time array (seconds)</td></tr>`;
+      html += `<tr><td><code>v.e</code></td><td>${player.v?.e?.length || 0}</td><td>Event types</td></tr>`;
+      html += '</table>';
+      html += '<p style="color: #8b949e; font-size: 11px; margin-bottom: 8px;">Event Type Mapping: 0=Ride, 1=Leave</p>';
+      if (player.v?.t?.length > 0) {
+        html += '<table style="margin-bottom: 12px;"><tr><th>Time</th><th>Event Type (Raw)</th><th>Event (Mapped)</th></tr>';
+        const eventMap = { 0: 'Ride', 1: 'Leave' };
+        for (let i = 0; i < player.v.t.length; i++) {
+          const evt = player.v.e[i];
+          html += `<tr><td>${player.v.t[i]}</td><td>${evt}</td><td>${eventMap[evt] || 'Unknown'}</td></tr>`;
+        }
+        html += '</table>';
+      }
+      html += '<p style="color: #8b949e; font-size: 11px; margin-bottom: 8px;">Raw JSON (click to expand):</p>';
+      html += renderJsonTree(player.v, null, true);
+      html += '</div></div>';
+      
+      // Weapon Switching (w)
+      html += '<div class="panel"><div class="panel-header"><span class="panel-title">Weapon Switching (w)</span></div><div class="panel-body">';
+      html += '<table style="margin-bottom: 12px;">';
+      html += '<tr><th>Field</th><th>Length</th><th>Description</th></tr>';
+      html += `<tr><td><code>w.t</code></td><td>${player.w?.t?.length || 0}</td><td>Time array (seconds)</td></tr>`;
+      html += `<tr><td><code>w.w</code></td><td>${player.w?.w?.length || 0}</td><td>Weapon indices (reference to x array)</td></tr>`;
+      html += '</table>';
+      if (player.w?.t?.length > 0) {
+        html += '<table style="margin-bottom: 12px;"><tr><th>Time</th><th>Weapon Index (Raw)</th><th>Weapon Name (Mapped)</th></tr>';
+        for (let i = 0; i < player.w.t.length; i++) {
+          const weaponIdx = player.w.w[i];
+          const weaponName = replayData.x?.[weaponIdx] || 'Unknown';
+          html += `<tr><td>${player.w.t[i]}</td><td>${weaponIdx}</td><td><code>${weaponName}</code></td></tr>`;
+        }
+        html += '</table>';
+      }
+      html += '<p style="color: #8b949e; font-size: 11px; margin-bottom: 8px;">Raw JSON (click to expand):</p>';
+      html += renderJsonTree(player.w, null, true);
+      html += '</div></div>';
+      
+      // Kills and Assists (k)
+      html += '<div class="panel"><div class="panel-header"><span class="panel-title">Kills and Assists (k)</span></div><div class="panel-body">';
+      html += '<table style="margin-bottom: 12px;">';
+      html += '<tr><th>Field</th><th>Length</th><th>Description</th></tr>';
+      html += `<tr><td><code>k.t</code></td><td>${player.k?.t?.length || 0}</td><td>Time array (seconds)</td></tr>`;
+      html += `<tr><td><code>k.k</code></td><td>${player.k?.k?.length || 0}</td><td>Kill counts at each time point</td></tr>`;
+      html += `<tr><td><code>k.a</code></td><td>${player.k?.a?.length || 0}</td><td>Assist counts at each time point</td></tr>`;
+      html += '</table>';
+      if (player.k?.t?.length > 0) {
+        html += '<table style="margin-bottom: 12px;"><tr><th>Time</th><th>Kills</th><th>Assists</th></tr>';
+        for (let i = 0; i < player.k.t.length; i++) {
+          html += `<tr><td>${player.k.t[i]}</td><td>${player.k.k[i]}</td><td>${player.k.a[i]}</td></tr>`;
+        }
+        html += '</table>';
+      }
+      html += '<p style="color: #8b949e; font-size: 11px; margin-bottom: 8px;">Raw JSON (click to expand):</p>';
+      html += renderJsonTree(player.k, null, true);
+      html += '</div></div>';
       
       content.innerHTML = html;
       attachCollapsible();
@@ -818,17 +1279,17 @@
     function renderZones(container) {
       let html = '';
       
-      // 毒圈
-      html += '<div class="panel"><div class="panel-header"><span class="panel-title">毒圈数据 (z.b)</span></div><div class="panel-body">';
-      html += '<table><tr><th>阶段</th><th>开始时间</th><th>结束时间</th><th>开始半径</th><th>结束半径</th><th>中心X</th><th>中心Y</th></tr>';
+      // Blue Zone
+      html += '<div class="panel"><div class="panel-header"><span class="panel-title">Blue Zone Data (z.b)</span></div><div class="panel-body">';
+      html += '<table><tr><th>Phase</th><th>Start Time</th><th>End Time</th><th>Start Radius</th><th>End Radius</th><th>Center X</th><th>Center Y</th></tr>';
       replayData.z?.b?.forEach((zone, idx) => {
         html += `<tr><td>${idx + 1}</td><td>${zone.b.t}</td><td>${zone.e.t}</td><td>${zone.b.r}</td><td>${zone.e.r}</td><td>${zone.b.x}</td><td>${zone.b.y}</td></tr>`;
       });
       html += '</table></div></div>';
 
-      // 安全区
-      html += '<div class="panel"><div class="panel-header"><span class="panel-title">安全区数据 (z.s)</span></div><div class="panel-body">';
-      html += '<table><tr><th>阶段</th><th>开始时间</th><th>结束时间</th><th>开始半径</th><th>结束半径</th><th>中心X</th><th>中心Y</th></tr>';
+      // Safe Zone
+      html += '<div class="panel"><div class="panel-header"><span class="panel-title">Safe Zone Data (z.s)</span></div><div class="panel-body">';
+      html += '<table><tr><th>Phase</th><th>Start Time</th><th>End Time</th><th>Start Radius</th><th>End Radius</th><th>Center X</th><th>Center Y</th></tr>';
       replayData.z?.s?.forEach((zone, idx) => {
         html += `<tr><td>${idx + 1}</td><td>${zone.b.t}</td><td>${zone.e.t}</td><td>${zone.b.r}</td><td>${zone.e.r}</td><td>${zone.b.x}</td><td>${zone.b.y}</td></tr>`;
       });
@@ -840,17 +1301,17 @@
     function renderSpecialZones(container) {
       let html = '';
       
-      // 轰炸区
-      html += '<div class="panel"><div class="panel-header"><span class="panel-title">红区 (s.r)</span></div><div class="panel-body">';
-      html += '<table><tr><th>时间</th><th>X</th><th>Y</th><th>水平半径</th><th>垂直半径</th><th>状态</th><th>类型</th><th>ID</th></tr>';
+      // Red Zone
+      html += '<div class="panel"><div class="panel-header"><span class="panel-title">Red Zone (s.r)</span></div><div class="panel-body">';
+      html += '<table><tr><th>Time</th><th>X</th><th>Y</th><th>Horiz Radius</th><th>Vert Radius</th><th>Status</th><th>Type</th><th>ID</th></tr>';
       replayData.s?.r?.forEach(zone => {
         html += `<tr><td>${zone.t}</td><td>${zone.x}</td><td>${zone.y}</td><td>${zone.h}</td><td>${zone.v}</td><td>${zone.s}</td><td>${zone.p}</td><td>${zone.i}</td></tr>`;
       });
       html += '</table></div></div>';
 
-      // 黑区
-      html += '<div class="panel"><div class="panel-header"><span class="panel-title">黑区 (s.b)</span></div><div class="panel-body">';
-      html += '<table><tr><th>时间</th><th>X</th><th>Y</th><th>水平半径</th><th>垂直半径</th><th>状态</th><th>类型</th><th>ID</th></tr>';
+      // Black Zone
+      html += '<div class="panel"><div class="panel-header"><span class="panel-title">Black Zone (s.b)</span></div><div class="panel-body">';
+      html += '<table><tr><th>Time</th><th>X</th><th>Y</th><th>Horiz Radius</th><th>Vert Radius</th><th>Status</th><th>Type</th><th>ID</th></tr>';
       replayData.s?.b?.forEach(zone => {
         html += `<tr><td>${zone.t}</td><td>${zone.x}</td><td>${zone.y}</td><td>${zone.h}</td><td>${zone.v}</td><td>${zone.s}</td><td>${zone.p}</td><td>${zone.i}</td></tr>`;
       });
@@ -860,11 +1321,11 @@
     }
 
     function renderCombats(container) {
-      let html = '<div class="panel"><div class="panel-header"><span class="panel-title">战斗数据 (c.a)</span></div><div class="panel-body">';
-      
+      let html = '<div class="panel"><div class="panel-header"><span class="panel-title">Combat Data (c.a)</span></div><div class="panel-body">';
+
       const combats = replayData.c?.a;
       if (combats) {
-        html += '<table><tr><th>时间</th><th>攻击者</th><th>受害者</th><th>伤害来源</th><th>伤害值</th></tr>';
+        html += '<table><tr><th>Time</th><th>Attacker</th><th>Victim</th><th>Damage Source</th><th>Damage</th></tr>';
         const len = combats.t?.length || 0;
         for (let i = 0; i < len; i++) {
           const attacker = replayData.p[combats.a[i]]?.i?.n || `Player ${combats.a[i]}`;
@@ -880,8 +1341,8 @@
     }
 
     function renderCarePackages(container) {
-      let html = '<div class="panel"><div class="panel-header"><span class="panel-title">空投补给 (k)</span></div><div class="panel-body">';
-      html += '<table><tr><th>ID</th><th>生成时间</th><th>落地时间</th><th>X</th><th>Y</th><th>物品</th></tr>';
+      let html = '<div class="panel"><div class="panel-header"><span class="panel-title">Care Packages (k)</span></div><div class="panel-body">';
+      html += '<table><tr><th>ID</th><th>Spawn Time</th><th>Land Time</th><th>X</th><th>Y</th><th>Items</th></tr>';
       replayData.k?.forEach(pkg => {
         const items = pkg.l?.map(i => replayData.x[i]).join(', ') || '-';
         html += `<tr><td>${pkg.i}</td><td>${pkg.s}</td><td>${pkg.t}</td><td>${pkg.x}</td><td>${pkg.y}</td><td style="max-width: 300px; overflow: hidden; text-overflow: ellipsis;">${items}</td></tr>`;
@@ -895,8 +1356,8 @@
       
       const b = replayData.b;
       
-      html += '<div class="panel"><div class="panel-header"><span class="panel-title">拾取事件 (b.l)</span></div><div class="panel-body">';
-      html += '<table><tr><th>时间</th><th>使用者</th><th>拥有者</th></tr>';
+      html += '<div class="panel"><div class="panel-header"><span class="panel-title">Pickup Events (b.l)</span></div><div class="panel-body">';
+      html += '<table><tr><th>Time</th><th>User</th><th>Owner</th></tr>';
       b?.l?.forEach(evt => {
         const user = evt.a === -1 ? 'System' : (replayData.p[evt.a]?.i?.n || `Player ${evt.a}`);
         const owner = evt.b === -1 ? 'None' : (replayData.p[evt.b]?.i?.n || `Player ${evt.b}`);
@@ -904,8 +1365,8 @@
       });
       html += '</table></div></div>';
 
-      html += '<div class="panel"><div class="panel-header"><span class="panel-title">使用事件 (b.u)</span></div><div class="panel-body">';
-      html += '<table><tr><th>时间</th><th>使用者</th><th>拥有者</th></tr>';
+      html += '<div class="panel"><div class="panel-header"><span class="panel-title">Use Events (b.u)</span></div><div class="panel-body">';
+      html += '<table><tr><th>Time</th><th>User</th><th>Owner</th></tr>';
       b?.u?.forEach(evt => {
         const user = evt.a === -1 ? 'System' : (replayData.p[evt.a]?.i?.n || `Player ${evt.a}`);
         const owner = evt.b === -1 ? 'None' : (replayData.p[evt.b]?.i?.n || `Player ${evt.b}`);
@@ -913,8 +1374,8 @@
       });
       html += '</table></div></div>';
 
-      html += '<div class="panel"><div class="panel-header"><span class="panel-title">蓝色晶片基站 (b.w)</span></div><div class="panel-body">';
-      html += '<table><tr><th>时间</th><th>X</th><th>Y</th></tr>';
+      html += '<div class="panel"><div class="panel-header"><span class="panel-title">Blue Chip Tower (b.w)</span></div><div class="panel-body">';
+      html += '<table><tr><th>Time</th><th>X</th><th>Y</th></tr>';
       b?.w?.forEach(tower => {
         html += `<tr><td>${tower.t}</td><td>${tower.x}</td><td>${tower.y}</td></tr>`;
       });
@@ -924,9 +1385,9 @@
     }
 
     function renderRedeploy(container) {
-      let html = '<div class="panel"><div class="panel-header"><span class="panel-title">重新部署 (r)</span></div><div class="panel-body">';
-      html += `<p style="color: #8b949e; margin-bottom: 16px;">时间: ${replayData.r?.t || 'N/A'}</p>`;
-      html += '<table><tr><th>玩家</th></tr>';
+      let html = '<div class="panel"><div class="panel-header"><span class="panel-title">Redeploy (r)</span></div><div class="panel-body">';
+      html += `<p style="color: #8b949e; margin-bottom: 16px;">Time: ${replayData.r?.t || 'N/A'}</p>`;
+      html += '<table><tr><th>Player</th></tr>';
       replayData.r?.c?.forEach(playerIdx => {
         const player = replayData.p[playerIdx];
         html += `<tr><td>${player?.i?.n || `Player ${playerIdx}`}</td></tr>`;
@@ -936,8 +1397,8 @@
     }
 
     function renderKills(container) {
-      let html = '<div class="panel"><div class="panel-header"><span class="panel-title">击杀记录 (f)</span></div><div class="panel-body">';
-      html += '<table><tr><th>时间</th><th>攻击者</th><th>受害者</th><th>爆头</th><th>击杀类型</th><th>武器</th></tr>';
+      let html = '<div class="panel"><div class="panel-header"><span class="panel-title">Kill Records (f)</span></div><div class="panel-body">';
+      html += '<table><tr><th>Time</th><th>Attacker</th><th>Victim</th><th>Headshot</th><th>Kill Type</th><th>Weapon</th></tr>';
       replayData.f?.forEach(kill => {
         const attacker = replayData.p[kill.a]?.i?.n || `Player ${kill.a}`;
         const victim = replayData.p[kill.b]?.i?.n || `Player ${kill.b}`;
@@ -955,8 +1416,8 @@
       container.innerHTML = `
         <div class="panel">
           <div class="panel-header">
-            <span class="panel-title">原始JSON数据</span>
-            <button class="btn" onclick="exportData()">导出JSON</button>
+            <span class="panel-title">Raw JSON Data</span>
+            <button class="btn" onclick="exportData()">Export JSON</button>
           </div>
           <div class="panel-body" style="padding: 0;">
             <div id="json-editor" style="width: 100%; height: 600px; border-radius: 0 0 6px 6px;"></div>
@@ -964,11 +1425,11 @@
         </div>
       `;
 
-      // 初始化Monaco Editor
+      // Initialize Monaco Editor
       if (typeof monaco !== 'undefined') {
         initMonacoEditor();
       } else {
-        // 等待Monaco加载完成
+        // Wait for Monaco to load
         window.require.config({ paths: { 'vs': 'https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.44.0/min/vs' }});
         window.require(['vs/editor/editor.main'], function() {
           initMonacoEditor();
@@ -1001,8 +1462,8 @@
       });
     }
 
-    // JSON树渲染
-    function renderJsonTree(obj, key) {
+    // JSON Tree Renderer
+    function renderJsonTree(obj, key, collapsed = false) {
       if (obj === null) return `<span class="json-null">null</span>`;
       if (typeof obj === 'boolean') return `<span class="json-boolean">${obj}</span>`;
       if (typeof obj === 'number') return `<span class="json-number">${obj}</span>`;
@@ -1010,9 +1471,10 @@
       
       if (Array.isArray(obj)) {
         if (obj.length === 0) return '[]';
-        let html = `<span class="collapsible">[</span><span class="json-node">`;
+        const collapsedClass = collapsed ? 'collapsible collapsed' : 'collapsible';
+        let html = `<span class="${collapsedClass}">[</span><span class="json-node">`;
         obj.slice(0, 50).forEach((item, i) => {
-          html += renderJsonTree(item);
+          html += renderJsonTree(item, null, collapsed);
           if (i < Math.min(obj.length, 50) - 1) html += ',';
           html += '<br>';
         });
@@ -1023,9 +1485,10 @@
       
       const keys = Object.keys(obj);
       if (keys.length === 0) return '{}';
-      let html = `<span class="collapsible">{</span><div class="json-node">`;
+      const collapsedClass = collapsed ? 'collapsible collapsed' : 'collapsible';
+      let html = `<span class="${collapsedClass}">{</span><div class="json-node">`;
       keys.forEach((k, i) => {
-        html += `<span class="json-key">"${k}"</span>: ${renderJsonTree(obj[k], k)}`;
+        html += `<span class="json-key">"${k}"</span>: ${renderJsonTree(obj[k], k, collapsed)}`;
         if (i < keys.length - 1) html += ',';
         html += '<br>';
       });
@@ -1041,7 +1504,7 @@
       });
     }
 
-    // ========== 2Dreplay ==========
+    // ========== 2D Replay ==========
     let replayEngine = null;
 
     function renderReplay(container) {
@@ -1049,30 +1512,37 @@
 
       container.innerHTML = `
         <div id="replay-container">
-          <div id="replay-canvas-container">
-            <div id="replay-map-container"></div>
-            <canvas id="replay-canvas"></canvas>
-            <div id="replay-stats">
-              <div>时间: <span id="replay-time">0:00</span> / <span id="replay-total">0:00</span> | 帧: <span id="replay-frame">0</span> | 速度: <span id="replay-speed">1x</span></div>
-              <div>存活: <span id="replay-alive">0</span> | 队伍: <span id="replay-teams">0</span> | 缩放: <span id="replay-zoom">1.0x</span></div>
-              <div>蓝圈: <span id="replay-bluezone">-</span> | 安全区: <span id="replay-safezone">-</span> | 红区: <span id="replay-redzone">-</span></div>
-              <div>战斗: <span id="replay-combat">-</span> | 空投: <span id="replay-carepackage">-</span> | 击杀: <span id="replay-kills">-</span></div>
-            </div>
-          </div>
-          <div id="replay-controls">
-            <input type="range" id="replay-timeline" min="0" max="1000" value="0">
-            <div class="replay-toolbar">
-              <button class="btn" id="replay-play-btn" onclick="replayEngine.togglePlay()">播放</button>
-              <button class="btn" onclick="replayEngine.reset()">重置</button>
-              <button class="btn speed-btn" data-speed="1" onclick="replayEngine.setSpeed(1)">1x</button>
-              <button class="btn speed-btn" data-speed="2" onclick="replayEngine.setSpeed(2)">2x</button>
-              <button class="btn speed-btn" data-speed="4" onclick="replayEngine.setSpeed(4)">4x</button>
-              <button class="btn speed-btn" data-speed="8" onclick="replayEngine.setSpeed(8)">8x</button>
-              <div class="replay-info">
-                <span>地图: ${replayData.t?.m || 'Unknown'}</span>
-                <span>尺寸: ${replayData.t?.w || 0}x${replayData.t?.h || 0}</span>
+          <div id="replay-main">
+            <div id="replay-canvas-container">
+              <div id="replay-map-container"></div>
+              <canvas id="replay-canvas"></canvas>
+              <div id="replay-tooltip"></div>
+              <div id="replay-stats">
+                <div>Time: <span id="replay-time">0:00</span> / <span id="replay-total">0:00</span> | Frame: <span id="replay-frame">0</span> | Speed: <span id="replay-speed">1x</span></div>
+                <div>Alive: <span id="replay-alive">0</span> | Teams: <span id="replay-teams">0</span> | Zoom: <span id="replay-zoom">1.0x</span></div>
+                <div>Blue Zone: <span id="replay-bluezone">-</span> | Safe Zone: <span id="replay-safezone">-</span> | Red Zone: <span id="replay-redzone">-</span></div>
+                <div>Combat: <span id="replay-combat">-</span> | Care Package: <span id="replay-carepackage">-</span> | Kills: <span id="replay-kills">-</span></div>
               </div>
             </div>
+            <div id="replay-controls">
+              <input type="range" id="replay-timeline" min="0" max="1000" value="0">
+              <div class="replay-toolbar">
+                <button class="btn" id="replay-play-btn" onclick="replayEngine.togglePlay()">Play</button>
+                <button class="btn" onclick="replayEngine.reset()">Reset</button>
+                <button class="btn speed-btn" data-speed="1" onclick="replayEngine.setSpeed(1)">1x</button>
+                <button class="btn speed-btn" data-speed="2" onclick="replayEngine.setSpeed(2)">2x</button>
+                <button class="btn speed-btn" data-speed="4" onclick="replayEngine.setSpeed(4)">4x</button>
+                <button class="btn speed-btn" data-speed="8" onclick="replayEngine.setSpeed(8)">8x</button>
+                <div class="replay-info">
+                  <span>Map: ${replayData.t?.m || 'Unknown'}</span>
+                  <span>Size: ${replayData.t?.w || 0}x${replayData.t?.h || 0}</span>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div id="replay-events-panel">
+            <div id="replay-events-header">Kill Feed</div>
+            <div id="replay-events-list"></div>
           </div>
         </div>
       `;
@@ -1112,6 +1582,12 @@
 
         this.images = {};
         this.cdnBaseUrl = 'https://prod-live-images.playbattlegrounds.com/27036d1894357a78';
+
+        // Kill feed data
+        this.killFeedData = [];
+        this.currentKillFeedIds = new Set();
+        this.killFeedDisplayDuration = 15;
+        this.maxKillFeedItems = 50;
       }
 
       async init() {
@@ -1122,6 +1598,7 @@
         await this.loadMapImages();
         this.processPlayerData();
         this.processZoneData();
+        this.processKillFeedData();
         this.setupEvents();
         this.updateUI();
         this.render();
@@ -1248,13 +1725,72 @@
           clanTag: player.i.c || '',
           teamId: player.i.t,
           origin: player.i.o,
-          teamColor: this.getTeamColor(player.i.t)
+          teamColor: getTeamColor(player.i.t)
         }));
       }
 
-      getTeamColor(teamId) {
-        const colors = ['#FF6B6B', '#4ECDC4', '#45B7D1', '#FFA07A', '#98D8C8', '#F7DC6F', '#BB8FCE', '#85C1E2'];
-        return colors[(teamId - 1) % colors.length] || '#888888';
+      /**
+       * Process kill feed data from replay
+       * Kill feed structure (from replayData.f array):
+       * - t: time (number) - event timestamp in seconds
+       * - a: attackerIndex (number) - index in player array, -1 for environment kills
+       * - b: victimIndex (number) - index in player array
+       * - p: attackerPlatform (string) - platform of attacker (e.g., "steam", "xbox")
+       * - q: victimPlatform (string) - platform of victim
+       * - h: isHeadShot (boolean) - whether it was a headshot
+       * - y: killType (number) - 0=Kill, 1=DBNO, 2=GroggyDamageKill
+       * - w: damageCauserPartDescIdIndex (number) - index in replayData.x array for weapon name
+       */
+      processKillFeedData() {
+        const killFeeds = this.data.f || [];
+        const weaponNames = this.data.x || []; // weapon name array
+
+        this.killFeedData = killFeeds.map((feed, index) => {
+          const attackerIdx = feed.a;
+          const victimIdx = feed.b;
+
+          const attacker = attackerIdx !== -1 ? {
+            index: attackerIdx,
+            nickname: this.playerBasicInfo[attackerIdx]?.nickname || 'Unknown',
+            platform: feed.p,
+            clanTag: this.playerBasicInfo[attackerIdx]?.clanTag || '',
+            teamId: this.playerBasicInfo[attackerIdx]?.teamId || 0,
+            teamColor: this.playerBasicInfo[attackerIdx]?.teamColor || '#888'
+          } : null;
+
+          const victim = victimIdx !== -1 ? {
+            index: victimIdx,
+            nickname: this.playerBasicInfo[victimIdx]?.nickname || 'Unknown',
+            platform: feed.q,
+            clanTag: this.playerBasicInfo[victimIdx]?.clanTag || '',
+            teamId: this.playerBasicInfo[victimIdx]?.teamId || 0,
+            teamColor: this.playerBasicInfo[victimIdx]?.teamColor || '#888'
+          } : null;
+
+          // Get weapon name from weaponNames array 
+          let weaponName = null;
+          if (feed.w !== -1 && feed.w !== undefined) {
+            weaponName = weaponNames[feed.w];
+          }
+
+          // Determine kill type
+          let killType = 'Kill';
+          if (feed.y === 1) killType = 'DBNO';
+          else if (feed.y === 2) killType = 'GroggyDamageKill';
+
+          return {
+            id: index,
+            time: feed.t,
+            attacker: attacker,
+            victim: victim,
+            isHeadShot: feed.h,
+            killType: killType,
+            weaponName: weaponName
+          };
+        });
+
+        // Sort by time ascending
+        this.killFeedData.sort((a, b) => a.time - b.time);
       }
 
       processZoneData() {
@@ -1270,7 +1806,7 @@
           blackzones: []
         }));
 
-        // 毒圈和安全区
+        // Blue zone and safe zone
         ['b', 's'].forEach(type => {
           const zones = this.data.z?.[type] || [];
           zones.forEach(zone => {
@@ -1295,12 +1831,12 @@
           });
         });
 
-        // 轰炸区和黑区
+        // Red zone and black zone
         ['r', 'b'].forEach(type => {
           const zones = this.data.s?.[type === 'r' ? 'r' : 'b'] || [];
           const zoneType = type === 'r' ? 'redzones' : 'blackzones';
 
-          // 按uniqueId分组
+          // Group by uniqueId
           const zoneGroups = new Map();
           zones.forEach(z => {
             if (!zoneGroups.has(z.i)) zoneGroups.set(z.i, []);
@@ -1330,7 +1866,7 @@
         });
       }
 
-      // 获取玩家在指定时间的状态
+      // Get player status at specified time
       getPlayerStatusAtTime(playerIdx, timeSec) {
         const player = this.data.p[playerIdx];
         if (!player) return null;
@@ -1359,7 +1895,7 @@
               break;
             }
           }
-          // 如果时间在最后一个点之后
+          // If time is after the last point
           if (!status.location && timeSec >= positions.t[positions.t.length - 1]) {
             const lastIdx = positions.t.length - 1;
             status.location = { x: positions.x[lastIdx], y: positions.y[lastIdx] };
@@ -1419,7 +1955,7 @@
         return status;
       }
 
-      // 交互地图
+      // Interactive map
       setupEvents() {
         const timeline = document.getElementById('replay-timeline');
         timeline.max = this.totalTime * 1000;
@@ -1435,11 +1971,13 @@
         });
 
         window.addEventListener('mousemove', (e) => {
-          if (!this.isDragging) return;
-          const dx = e.clientX - this.lastMousePos.x;
-          const dy = e.clientY - this.lastMousePos.y;
-          this.lastMousePos = { x: e.clientX, y: e.clientY };
-          this.drag(dx, dy);
+          if (this.isDragging) {
+            const dx = e.clientX - this.lastMousePos.x;
+            const dy = e.clientY - this.lastMousePos.y;
+            this.lastMousePos = { x: e.clientX, y: e.clientY };
+            this.drag(dx, dy);
+          }
+          this.handleMouseMove(e);
         });
 
         window.addEventListener('mouseup', () => {
@@ -1470,7 +2008,7 @@
         return scaled / this.canvasSize * Math.max(this.mapWidth, this.mapHeight);
       }
 
-      // 拖拽
+      // Drag
       drag(dx, dy) {
         const threshold = this.getOffsetThreshold();
         const newX = this.translateCoord.x + dx;
@@ -1485,7 +2023,7 @@
         this.render();
       }
 
-      // 缩放
+      // Zoom
       zoom(factor) {
         const newScale = this.clampScale(this.scaleLevel * factor);
         if (newScale !== this.scaleLevel) {
@@ -1532,6 +2070,92 @@
         return Math.floor((this.canvasSize * this.scaleLevel - this.canvasSize) / 2);
       }
 
+      handleMouseMove(e) {
+        const containerRect = document.getElementById('replay-canvas-container').getBoundingClientRect();
+        const mouseX = e.clientX - containerRect.left;
+        const mouseY = e.clientY - containerRect.top;
+        
+        // Check care package hover
+        const hoveredCarePackage = this.getHoveredCarePackage(mouseX, mouseY);
+        this.showCarePackageTooltip(hoveredCarePackage, mouseX, mouseY);
+      }
+
+      getHoveredCarePackage(mouseX, mouseY) {
+        const hitRadius = 20; // Pixel radius for hover detection
+        
+        for (const pkg of this.data.k || []) {
+          if (pkg.s === -1 || this.currentTime < pkg.s) continue;
+          
+          const screenX = this.translateX(pkg.x);
+          const screenY = this.translateY(pkg.y);
+          
+          const dx = mouseX - screenX;
+          const dy = mouseY - screenY;
+          const distance = Math.sqrt(dx * dx + dy * dy);
+          
+          if (distance <= hitRadius) {
+            return pkg;
+          }
+        }
+        return null;
+      }
+
+      showCarePackageTooltip(pkg, mouseX, mouseY) {
+        const tooltip = document.getElementById('replay-tooltip');
+        const container = document.getElementById('replay-canvas-container');
+        
+        if (!pkg) {
+          tooltip.style.display = 'none';
+          return;
+        }
+        
+        const isLanded = this.currentTime >= pkg.t;
+        const items = pkg.l?.map(i => this.data.x[i]).join(', ') || 'None';
+        
+        tooltip.innerHTML = `
+          <div class="tooltip-title">Care Package #${pkg.i}</div>
+          <div class="tooltip-row">
+            <span class="tooltip-label">Status:</span>
+            <span class="tooltip-value">${isLanded ? 'Landed' : 'Falling'}</span>
+          </div>
+          <div class="tooltip-row">
+            <span class="tooltip-label">Spawn Time:</span>
+            <span class="tooltip-value">${pkg.s}s</span>
+          </div>
+          <div class="tooltip-row">
+            <span class="tooltip-label">Land Time:</span>
+            <span class="tooltip-value">${pkg.t}s</span>
+          </div>
+          <div class="tooltip-row">
+            <span class="tooltip-label">Position:</span>
+            <span class="tooltip-value">${Math.round(pkg.x)}, ${Math.round(pkg.y)}</span>
+          </div>
+          <div class="tooltip-items">Items: ${items}</div>
+        `;
+        
+        // First make tooltip visible to get its dimensions
+        tooltip.style.display = 'block';
+        const tooltipRect = tooltip.getBoundingClientRect();
+        const containerRect = container.getBoundingClientRect();
+        const offsetX = 15;
+        const offsetY = 15;
+        
+        // Calculate position relative to container
+        let left = mouseX + offsetX;
+        let top = mouseY + offsetY;
+        
+        // Keep within container bounds
+        if (left + tooltipRect.width > containerRect.width) {
+          left = mouseX - tooltipRect.width - offsetX;
+        }
+        if (top + tooltipRect.height > containerRect.height) {
+          top = mouseY - tooltipRect.height - offsetY;
+        }
+        
+        tooltip.style.left = left + 'px';
+        tooltip.style.top = top + 'px';
+      }
+
       togglePlay() {
         if (this.isPlaying) {
           this.pause();
@@ -1542,14 +2166,14 @@
 
       play() {
         this.isPlaying = true;
-        document.getElementById('replay-play-btn').textContent = '暂停';
+        document.getElementById('replay-play-btn').textContent = 'Pause';
         this.lastFrameTime = performance.now();
         this.loop();
       }
 
       pause() {
         this.isPlaying = false;
-        document.getElementById('replay-play-btn').textContent = '播放';
+        document.getElementById('replay-play-btn').textContent = 'Play';
         if (this.animationId) {
           cancelAnimationFrame(this.animationId);
         }
@@ -1560,6 +2184,9 @@
         this.currentTime = 0;
         this.scaleLevel = 1;
         this.translateCoord = { x: 0, y: 0 };
+        if (this.currentKillFeedIds) {
+          this.currentKillFeedIds.clear();
+        }
         this.render();
         this.updateUI();
       }
@@ -1609,7 +2236,7 @@
         document.getElementById('replay-speed').textContent = `${this.speed}x`;
         document.getElementById('replay-zoom').textContent = this.scaleLevel.toFixed(2) + 'x';
 
-        // 蓝圈信息
+        // Blue zone info
         const bluezoneEl = document.getElementById('replay-bluezone');
         if (zones.bluezone) {
           bluezoneEl.textContent = `R=${Math.round(zones.bluezone.radius)}`;
@@ -1617,7 +2244,7 @@
           bluezoneEl.textContent = '-';
         }
 
-        // 安全区信息
+        // Safe zone info
         const safezoneEl = document.getElementById('replay-safezone');
         if (zones.safezone) {
           safezoneEl.textContent = `R=${Math.round(zones.safezone.radius)}`;
@@ -1625,15 +2252,15 @@
           safezoneEl.textContent = '-';
         }
 
-        // 轰炸区信息
+        // Red zone info
         const redzoneEl = document.getElementById('replay-redzone');
         if (zones.redzones && zones.redzones.length > 0) {
-          redzoneEl.textContent = `${zones.redzones.length}个`;
+          redzoneEl.textContent = `${zones.redzones.length}`;
         } else {
           redzoneEl.textContent = '-';
         }
 
-        // 计算存活玩家和队伍数
+        // Calculate alive players and teams
         let aliveCount = 0;
         const aliveTeams = new Set();
         this.playerBasicInfo.forEach((info, idx) => {
@@ -1646,7 +2273,7 @@
         document.getElementById('replay-alive').textContent = aliveCount;
         document.getElementById('replay-teams').textContent = aliveTeams.size;
 
-        // 当前战斗事件数
+        // Current combat events
         const combats = this.data.c?.a;
         let currentCombats = 0;
         if (combats && combats.t) {
@@ -1658,38 +2285,187 @@
         }
         document.getElementById('replay-combat').textContent = currentCombats;
 
-        // 当前空投数
+        // Current care packages
         const carePackages = this.data.k?.filter(pkg => pkg.s !== -1 && this.currentTime >= pkg.s) || [];
         document.getElementById('replay-carepackage').textContent = carePackages.length;
 
-        // 当前击杀数
+        // Current kills
         const recentKills = this.data.f?.filter(k => Math.abs(k.t - this.currentTime) < 2).length || 0;
         document.getElementById('replay-kills').textContent = recentKills;
+
+        // Update kill feed panel
+        this.updateKillFeedUI();
+      }
+
+      /**
+       * Update kill feed panel UI
+       * Shows all kill events up to current time, with recent ones highlighted
+       */
+      updateKillFeedUI() {
+        const eventsList = document.getElementById('replay-events-list');
+        if (!eventsList) return;
+
+        // Ensure currentKillFeedIds is initialized
+        if (!this.currentKillFeedIds) {
+          this.currentKillFeedIds = new Set();
+        }
+
+        // Get all kill feeds up to current time (show all, not just recent)
+        const visibleFeeds = this.killFeedData.filter(feed => {
+          return feed.time <= this.currentTime;
+        });
+
+        // Track which items are currently displayed
+        const newKillFeedIds = new Set(visibleFeeds.map(f => f.id));
+
+        // Check if we need to update (different set of items)
+        const needsUpdate = !this.areSetsEqual(this.currentKillFeedIds, newKillFeedIds);
+
+        if (needsUpdate) {
+          this.currentKillFeedIds = newKillFeedIds;
+          eventsList.innerHTML = '';
+
+          visibleFeeds.forEach(feed => {
+            const eventEl = this.createKillFeedElement(feed);
+            eventsList.appendChild(eventEl);
+          });
+
+          // Scroll to bottom to show latest events
+          eventsList.scrollTop = eventsList.scrollHeight;
+        }
+      }
+
+      /**
+       * Create a kill feed element
+       */
+      createKillFeedElement(feed) {
+        const el = document.createElement('div');
+        el.className = `replay-event-item ${feed.killType === 'Kill' ? 'kill' : 'dbno'}`;
+        el.dataset.feedId = feed.id;
+
+        const formatTime = (sec) => {
+          const m = Math.floor(sec / 60);
+          const s = Math.floor(sec % 60);
+          return `${m}:${s.toString().padStart(2, '0')}`;
+        };
+
+        // Build tooltip text with full information
+        const attackerName = feed.attacker ? `[${feed.attacker.clanTag}]${feed.attacker.nickname}`.replace(/^\[\]/, '') : 'Environment';
+        const victimName = feed.victim ? `[${feed.victim.clanTag}]${feed.victim.nickname}`.replace(/^\[\]/, '') : 'Unknown';
+        const weaponText = feed.weaponName ? feed.weaponName.split('.').pop() : 'Environment';
+        const headshotText = feed.isHeadShot ? ' (Headshot)' : '';
+        el.title = `${formatTime(feed.time)} ${attackerName} → ${victimName} [${weaponText}]${headshotText}`;
+
+        // Weapon icon
+        let weaponHtml = '';
+        if (feed.weaponName) {
+          const weaponIcon = this.getWeaponSilhouetteIcon(feed.weaponName);
+          weaponHtml = `<img class="replay-event-weapon" src="${weaponIcon}" alt="" onerror="this.src='${this.getKillFeedIcon('unknown')}'">`;
+        } else if (feed.attacker === null) {
+          // Environment kill (blue zone, fall, etc.)
+          weaponHtml = `<img class="replay-event-icon" src="${this.getKillFeedIcon('bluezone')}" alt="" onerror="this.src='${this.getKillFeedIcon('unknown')}'">`;
+        }
+
+        // Headshot icon
+        const headshotHtml = feed.isHeadShot ?
+          `<img class="replay-event-icon" src="${this.getKillFeedIcon('headshot')}" alt="HS">` : '';
+
+        // DBNO icon for knockdowns
+        const dbnoHtml = feed.killType === 'DBNO' ?
+          `<img class="replay-event-icon" src="${this.getKillFeedIcon('dbno')}" alt="DBNO">` : '';
+
+        // Attacker section
+        let attackerHtml = '';
+        if (feed.attacker) {
+          attackerHtml = `
+            <div class="replay-event-player">
+              <div class="replay-event-team" style="background-color: ${feed.attacker.teamColor}">${feed.attacker.teamId}</div>
+              <span class="replay-event-name">${this.escapeHtml(feed.attacker.nickname)}</span>
+            </div>
+          `;
+        } else {
+          attackerHtml = `<span class="replay-event-name" style="color:#888">Environment</span>`;
+        }
+
+        // Victim section
+        const victimHtml = feed.victim ? `
+          <div class="replay-event-player">
+            <div class="replay-event-team" style="background-color: ${feed.victim.teamColor}">${feed.victim.teamId}</div>
+            <span class="replay-event-name victim-name">${this.escapeHtml(feed.victim.nickname)}</span>
+          </div>
+        ` : '';
+
+        el.innerHTML = `
+          <div class="replay-event-time">${formatTime(feed.time)}</div>
+          <div class="replay-event-content">
+            ${attackerHtml}
+            <span class="replay-event-arrow">→</span>
+            ${weaponHtml}
+            ${headshotHtml}
+            ${dbnoHtml}
+            ${victimHtml}
+          </div>
+        `;
+
+        return el;
+      }
+
+      /**
+       * Get weapon silhouette icon URL
+       */
+      getWeaponSilhouetteIcon(weaponName) {
+        if (!weaponName || weaponName === 'unknown' || weaponName === 'null') {
+          return this.getKillFeedIcon('unknown');
+        }
+        // Extract second part from part descriptor (e.g., "Item.Weapon.WeapM416_C" -> "Weapon")
+        const weaponClass = weaponName.split('.')[1];
+        return `${this.cdnBaseUrl}/webreplay/icons/weapon/${weaponClass}.png`;
+      }
+
+      /**
+       * Escape HTML special characters
+       */
+      escapeHtml(text) {
+        if (!text) return '';
+        const div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
+      }
+
+      /**
+       * Check if two sets are equal
+       */
+      areSetsEqual(a, b) {
+        if (a.size !== b.size) return false;
+        for (const item of a) {
+          if (!b.has(item)) return false;
+        }
+        return true;
       }
 
       render() {
         const ctx = this.ctx;
         const size = this.canvasSize;
 
-        // 清空画布
+        // Clear canvas
         ctx.clearRect(0, 0, size, size);
 
-        // 绘制网格
+        // Draw grid
         this.drawGrid();
 
-        // 绘制安全区/毒圈
+        // Draw safe zone/blue zone
         this.drawZones();
 
-        // 绘制空投
+        // Draw care packages
         this.drawCarePackages();
 
-        // 绘制玩家
+        // Draw players
         this.drawPlayers();
 
-        // 绘制战斗特效
+        // Draw combat effects
         this.drawCombats();
 
-        // 更新地图容器变换
+        // Update map container transform
         this.updateMapTransform();
       }
 
@@ -1738,7 +2514,7 @@
         const zones = this.zoneData[frameIdx] || {};
         const ctx = this.ctx;
 
-        // 只在蓝圈半径小于地图尺寸时才绘制，避免初始时覆盖整个地图
+        // Only draw blue zone when radius is smaller than map size to avoid covering entire map initially
         if (zones.bluezone && zones.bluezone.radius < this.mapWidth * 0.8) {
           ctx.fillStyle = 'rgba(0, 44, 156, 0.5)';
           const coverSize = Math.max(this.canvas.width, this.canvas.height);
@@ -1796,8 +2572,8 @@
 
       drawCarePackages() {
         const ctx = this.ctx;
-        this.data.k?.filter(pkg => pkg.s !== -1).forEach(pkg => { // 过滤掉spawnTime为-1的空投
-          // 空投掉落后常驻
+        this.data.k?.filter(pkg => pkg.s !== -1).forEach(pkg => { // Filter out care packages with spawnTime -1
+          // Care packages persist after landing
           if (this.currentTime >= pkg.s) {
             const isLanded = this.currentTime >= pkg.t;
             const x = this.translateX(pkg.x);
@@ -1913,7 +2689,7 @@
           return;
         }
 
-        // 载具状态
+        // Vehicle status
         if (status.isVehicleRide) {
           const vehicleUrl = this.getObserverImage('VehicleRide');
           const vehicleImg = this.loadImage(vehicleUrl);
